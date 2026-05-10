@@ -31,7 +31,10 @@ export function PlayBar({
 }: Props) {
   return (
     <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-2 backdrop-blur-xl sm:gap-3 sm:px-4">
-      <div className="flex items-center gap-2 min-w-0">
+      {/* flex-1 + min-w-0 makes the modifier label expand into whatever space
+          the right cluster doesn't claim, instead of shrinking to its
+          content's intrinsic size. */}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         <div
           className="h-7 w-7 shrink-0 rounded-md text-black flex items-center justify-center text-[11px] font-mono font-semibold"
           style={{ background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
@@ -39,17 +42,17 @@ export function PlayBar({
         >
           {String(config.level).padStart(2, "0")}
         </div>
-        <div className="flex flex-col min-w-0">
+        <div className="flex min-w-0 flex-col">
           <span className="text-[9px] uppercase tracking-[0.2em] text-[var(--color-muted)] leading-tight">
             {palette.name}
           </span>
-          <span className="text-xs font-semibold text-[var(--color-fg)] truncate leading-tight">
+          <span className="truncate text-xs font-semibold leading-tight text-[var(--color-fg)]">
             {config.modifier.name}
           </span>
         </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <div className="flex items-center gap-1.5 font-mono tabular-nums text-sm text-[var(--color-fg)]">
           <Bomb className="h-3.5 w-3.5 text-[var(--color-fg-soft)]" />
           {minesLeft}
