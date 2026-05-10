@@ -53,18 +53,70 @@ test.describe("level picker", () => {
   })
 })
 
-test.describe("modifier achievements", () => {
-  test("all 6 modifiers are listed but locked by default", async ({ page }) => {
+test.describe("modifier achievements subpage", () => {
+  test("main menu shows a 'Modifiers' entry with x/y discovered count", async ({ page }) => {
+    await setPersisted(page, { "ms.unlockedModifiers": ["calm"] })
     await page.goto("/")
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
 
-    // Six modifier slots in the achievement grid.
-    const slots = page.getByRole("group", { name: /modifier|Locked modifier/ })
-    await expect(slots).toHaveCount(6)
-    // None unlocked → all should display as "???".
+    const entry = page.getByRole("button", { name: "Open modifiers list" })
+    await expect(entry).toBeVisible()
+    await expect(entry).toContainText("1 of 6 discovered")
+    // The grid itself should NOT be visible on the main view.
+    await expect(page.getByRole("group", { name: /Locked modifier|Calm/ })).toHaveCount(0)
+  })
+
+  test("clicking the entry navigates to the modifiers subpage", async ({ page }) => {
+    await page.goto("/")
+    await page.getByLabel("Open menu").click()
+    await waitForAnimations(page)
+
+    await page.getByRole("button", { name: "Open modifiers list" }).click()
+    // Subpage header
+    await expect(page.getByRole("heading", { name: "Modifiers" })).toBeVisible()
+    await expect(page.getByLabel("Back to menu")).toBeVisible()
+    // All 6 modifier slots now visible in the grid.
+    await expect(page.getByRole("group", { name: /Locked modifier|Calm|Fog|Bonus|Twin|Quick|Dense/ })).toHaveCount(6)
+  })
+
+  test("back button returns to main menu view", async ({ page }) => {
+    await page.goto("/")
+    await page.getByLabel("Open menu").click()
+    await waitForAnimations(page)
+    await page.getByRole("button", { name: "Open modifiers list" }).click()
+    await expect(page.getByLabel("Back to menu")).toBeVisible()
+    await page.getByLabel("Back to menu").click()
+    // Back on the main view: the entry button is visible again, the grid is gone.
+    await expect(page.getByRole("button", { name: "Open modifiers list" })).toBeVisible()
+    await expect(page.getByRole("group", { name: /Locked modifier|Calm/ })).toHaveCount(0)
+  })
+
+  test("re-opening the menu always lands on the main view", async ({ page }) => {
+    await page.goto("/")
+    await page.getByLabel("Open menu").click()
+    await waitForAnimations(page)
+    await page.getByRole("button", { name: "Open modifiers list" }).click()
+    // Close while on the subpage.
+    await page.getByLabel("Close menu").click()
+    // Wait for unmount.
+    await expect(page.getByRole("dialog", { name: "Game menu" })).toHaveCount(0)
+    // Re-open.
+    await page.getByLabel("Open menu").click()
+    await waitForAnimations(page)
+    // Should be back on the main view.
+    await expect(page.getByRole("button", { name: "Open modifiers list" })).toBeVisible()
+  })
+
+  test("all 6 modifiers are locked by default on the subpage", async ({ page }) => {
+    await page.goto("/")
+    await page.getByLabel("Open menu").click()
+    await waitForAnimations(page)
+    await page.getByRole("button", { name: "Open modifiers list" }).click()
+
     const lockedCount = await page.locator('[data-unlocked="false"]').count()
     expect(lockedCount).toBe(6)
+    // The Badge in the subpage header shows "0/6".
     await expect(page.getByText("0/6")).toBeVisible()
   })
 
@@ -73,12 +125,11 @@ test.describe("modifier achievements", () => {
     await page.goto("/")
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
+    await page.getByRole("button", { name: "Open modifiers list" }).click()
 
     await expect(page.getByText("2/6")).toBeVisible()
-    // Unlocked tiles show real names.
     await expect(page.getByRole("group", { name: "Calm" })).toBeVisible()
     await expect(page.getByRole("group", { name: "Fog" })).toBeVisible()
-    // Locked tiles still show "???".
     const locked = await page.locator('[data-unlocked="false"]').count()
     expect(locked).toBe(4)
   })
@@ -87,6 +138,7 @@ test.describe("modifier achievements", () => {
     await page.goto("/")
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
+    await page.getByRole("button", { name: "Open modifiers list" }).click()
 
     const locked = page.locator('[data-unlocked="false"]').first()
     await expect(locked.locator("svg.lucide-lock")).toBeVisible()

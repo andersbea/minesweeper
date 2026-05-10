@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import {
+  ChevronLeft,
+  ChevronRight,
   Cloud,
   Link2,
   Lock,
@@ -9,6 +11,7 @@ import {
   Sparkles,
   Sun,
   Target,
+  Trophy,
   Waves,
   X,
   Zap,
@@ -76,11 +79,15 @@ export function MenuSheet({
   // slide-up reliably plays even on the very first mount.
   const [mounted, setMounted] = useState(open)
   const [closing, setClosing] = useState(false)
+  // Subpage navigation inside the sheet. Reset to "main" each time the sheet
+  // re-opens so the user always lands on the top-level menu first.
+  const [view, setView] = useState<"main" | "modifiers">("main")
 
   useEffect(() => {
     if (open) {
       setMounted(true)
       setClosing(false)
+      setView("main")
     } else if (mounted) {
       setClosing(true)
       const t = window.setTimeout(() => {
@@ -120,73 +127,204 @@ export function MenuSheet({
       >
         <div className="mx-auto h-1 w-10 rounded-full bg-[var(--color-border)] sm:hidden" />
 
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[var(--color-muted)]">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
-              />
-              Minesweeper
-            </div>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--color-fg)]">
-              Level{" "}
-              <span
-                className="bg-clip-text text-transparent"
-                style={{ backgroundImage: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
-              >
-                {String(config.level).padStart(2, "0")}
-              </span>
-            </h2>
+        {view === "main" ? (
+          <MainView
+            config={config}
+            palette={palette}
+            theme={theme}
+            streak={streak}
+            totalWins={totalWins}
+            bestLevel={bestLevel}
+            minesLeft={minesLeft}
+            seconds={seconds}
+            unlockedModifiers={unlockedModifiers}
+            maxClearedLevel={maxClearedLevel}
+            onClose={onClose}
+            onToggleTheme={onToggleTheme}
+            onRestart={onRestart}
+            onNewRun={onNewRun}
+            onJumpToLevel={onJumpToLevel}
+            onOpenModifiers={() => setView("modifiers")}
+          />
+        ) : (
+          <ModifiersView
+            palette={palette}
+            unlockedModifiers={unlockedModifiers}
+            onBack={() => setView("main")}
+            onClose={onClose}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
+function MainView({
+  config,
+  palette,
+  theme,
+  streak,
+  totalWins,
+  bestLevel,
+  minesLeft,
+  seconds,
+  unlockedModifiers,
+  maxClearedLevel,
+  onClose,
+  onToggleTheme,
+  onRestart,
+  onNewRun,
+  onJumpToLevel,
+  onOpenModifiers,
+}: {
+  config: LevelConfig
+  palette: Palette
+  theme: Theme
+  streak: number
+  totalWins: number
+  bestLevel: number
+  minesLeft: number
+  seconds: number
+  unlockedModifiers: ModifierId[]
+  maxClearedLevel: number
+  onClose: () => void
+  onToggleTheme: () => void
+  onRestart: () => void
+  onNewRun: () => void
+  onJumpToLevel: (level: number) => void
+  onOpenModifiers: () => void
+}) {
+  const totalModifiers = Object.keys(MODIFIERS).length
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[var(--color-muted)]">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
+            />
+            Minesweeper
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={onToggleTheme}
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--color-fg)]">
+            Level{" "}
+            <span
+              className="bg-clip-text text-transparent"
+              style={{ backgroundImage: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
             >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" size="icon" onClick={onClose} aria-label="Close menu">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+              {String(config.level).padStart(2, "0")}
+            </span>
+          </h2>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">
-            <Sparkles className="h-3 w-3" />
-            Streak {streak}
-          </Badge>
-          <Badge variant="outline">{totalWins} total wins</Badge>
-        </div>
-
-        <HUD level={config.level} best={bestLevel} minesLeft={minesLeft} seconds={seconds} />
-        <ModifierBanner config={config} palette={palette} />
-
-        <LevelPicker
-          currentLevel={config.level}
-          maxCleared={maxClearedLevel}
-          onPick={onJumpToLevel}
-        />
-
-        <ModifierAchievements unlocked={unlockedModifiers} palette={palette} />
-
-        <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-          <MousePointerClick className="h-3.5 w-3.5" />
-          <span>Tap to reveal · long-press or right-click to flag · tap a number to chord.</span>
-        </div>
-
-        <div className="mt-1 flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onRestart}>
-            <RotateCcw className="h-4 w-4" /> Restart level
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" className="flex-1" onClick={onNewRun}>
-            New run
+          <Button variant="outline" size="icon" onClick={onClose} aria-label="Close menu">
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline">
+          <Sparkles className="h-3 w-3" />
+          Streak {streak}
+        </Badge>
+        <Badge variant="outline">{totalWins} total wins</Badge>
+      </div>
+
+      <HUD level={config.level} best={bestLevel} minesLeft={minesLeft} seconds={seconds} />
+      <ModifierBanner config={config} palette={palette} />
+
+      <LevelPicker
+        currentLevel={config.level}
+        maxCleared={maxClearedLevel}
+        onPick={onJumpToLevel}
+      />
+
+      <button
+        type="button"
+        onClick={onOpenModifiers}
+        aria-label="Open modifiers list"
+        className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/60 p-3 text-left transition-colors hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)]/70"
+      >
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-black"
+          style={{ background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
+        >
+          <Trophy className="h-4 w-4" strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-[var(--color-fg)]">Modifiers</div>
+          <div className="text-xs text-[var(--color-muted)]">
+            {unlockedModifiers.length} of {totalModifiers} discovered
+          </div>
+        </div>
+        <ChevronRight className="h-4 w-4 text-[var(--color-muted)]" />
+      </button>
+
+      <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+        <MousePointerClick className="h-3.5 w-3.5" />
+        <span>Tap to reveal · long-press or right-click to flag · tap a number to chord.</span>
+      </div>
+
+      <div className="mt-1 flex gap-2">
+        <Button variant="outline" className="flex-1" onClick={onRestart}>
+          <RotateCcw className="h-4 w-4" /> Restart level
+        </Button>
+        <Button variant="ghost" className="flex-1" onClick={onNewRun}>
+          New run
+        </Button>
+      </div>
+    </>
+  )
+}
+
+function ModifiersView({
+  palette,
+  unlockedModifiers,
+  onBack,
+  onClose,
+}: {
+  palette: Palette
+  unlockedModifiers: ModifierId[]
+  onBack: () => void
+  onClose: () => void
+}) {
+  const total = Object.keys(MODIFIERS).length
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="icon" onClick={onBack} aria-label="Back to menu">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-muted)]">
+            Achievements
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-fg)]">
+            Modifiers
+          </h2>
+        </div>
+        <Badge variant="outline">
+          <Trophy className="h-3 w-3" />
+          {unlockedModifiers.length}/{total}
+        </Badge>
+        <Button variant="outline" size="icon" onClick={onClose} aria-label="Close menu">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-xs text-[var(--color-muted)]">
+        Each round randomizes one modifier. Win a round to reveal it here. More modifiers will be
+        added over time.
+      </p>
+      <ModifierAchievements unlocked={unlockedModifiers} palette={palette} />
     </>
   )
 }
@@ -249,22 +387,11 @@ function ModifierAchievements({
   palette: Palette
 }) {
   const ids = Object.keys(MODIFIERS) as ModifierId[]
-  const total = ids.length
   const unlockedSet = new Set(unlocked)
-  const found = unlockedSet.size
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">
-          Modifiers discovered
-        </span>
-        <span className="text-[10px] font-mono text-[var(--color-muted)]">
-          {found}/{total}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {ids.map((id) => {
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {ids.map((id) => {
           const mod = MODIFIERS[id]
           const isUnlocked = unlockedSet.has(id)
           const Icon = MODIFIER_ICONS[mod.icon] ?? Sparkles
@@ -314,7 +441,6 @@ function ModifierAchievements({
             </div>
           )
         })}
-      </div>
     </div>
   )
 }
