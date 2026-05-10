@@ -61,8 +61,11 @@ function CellInner({
 
   const handleClick = (e: React.MouseEvent) => {
     if (longPressFired.current) {
-      // Long-press already triggered the flag — suppress the click.
-      longPressFired.current = false
+      // Long-press already placed the flag — swallow this synthetic click.
+      // We do NOT reset longPressFired here; some browsers (notably iOS
+      // Safari after a held touch) fire two click events for the same
+      // release, and resetting after the first would let the second toggle
+      // the flag back off. The next pointerdown will reset it instead.
       return
     }
     if (e.shiftKey || e.altKey) {
