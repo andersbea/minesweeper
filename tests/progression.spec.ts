@@ -5,54 +5,6 @@ test.beforeEach(async ({ page }) => {
   await freshSession(page)
 })
 
-test.describe("level picker", () => {
-  test("shows only level 1 by default (nothing cleared yet)", async ({ page }) => {
-    await page.goto("/")
-    await page.getByLabel("Open menu").click()
-    await waitForAnimations(page)
-
-    await expect(page.getByLabel("Start at level 1")).toBeVisible()
-    await expect(page.getByLabel("Start at level 2")).toHaveCount(0)
-    await expect(page.getByText("Clear levels to unlock more")).toBeVisible()
-  })
-
-  test("unlocks levels up to maxCleared + 1", async ({ page }) => {
-    await setPersisted(page, { "ms.maxClearedLevel": 4 })
-    await page.goto("/")
-    await page.getByLabel("Open menu").click()
-    await waitForAnimations(page)
-
-    // Levels 1..5 should all be selectable.
-    for (let lvl = 1; lvl <= 5; lvl++) {
-      await expect(page.getByLabel(`Start at level ${lvl}`)).toBeVisible()
-    }
-    // Level 6 should NOT be visible — it's still locked.
-    await expect(page.getByLabel("Start at level 6")).toHaveCount(0)
-    await expect(page.getByText("Cleared up to 4")).toBeVisible()
-  })
-
-  test("clicking a level button starts that level", async ({ page }) => {
-    await setPersisted(page, { "ms.maxClearedLevel": 5 })
-    await page.goto("/")
-    await page.getByLabel("Open menu").click()
-    await waitForAnimations(page)
-
-    await page.getByLabel("Start at level 4").click()
-    // The dialog should close and the playbar should now show level 4.
-    await expect(page.getByLabel("Level 4", { exact: true })).toBeVisible()
-  })
-
-  test("the current level is highlighted as 'aria-current'", async ({ page }) => {
-    await setPersisted(page, { "ms.currentLevel": 3, "ms.maxClearedLevel": 5 })
-    await page.goto("/")
-    await page.getByLabel("Open menu").click()
-    await waitForAnimations(page)
-
-    await expect(page.getByLabel("Start at level 3")).toHaveAttribute("aria-current", "true")
-    await expect(page.getByLabel("Start at level 1")).not.toHaveAttribute("aria-current", /.+/)
-  })
-})
-
 test.describe("modifier achievements subpage", () => {
   test("main menu shows a 'Modifiers' entry with x/y discovered count", async ({ page }) => {
     await setPersisted(page, { "ms.unlockedModifiers": ["calm"] })

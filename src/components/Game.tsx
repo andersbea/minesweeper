@@ -62,9 +62,6 @@ export function Game() {
   const [totalWins, setTotalWins] = useLocalStorage<number>("ms.totalWins", 0)
   const [flagMode, setFlagMode] = useLocalStorage<boolean>("ms.flagMode", false)
   const [, setCurrentLevel] = useLocalStorage<number>("ms.currentLevel", initialLevel)
-  // Highest level the player has cleared. Unlocks the level picker for
-  // levels [1..maxClearedLevel + 1].
-  const [maxClearedLevel, setMaxClearedLevel] = useLocalStorage<number>("ms.maxClearedLevel", 0)
   // Modifier IDs the player has won at least once with — drives the
   // achievement grid in the menu.
   const [unlockedModifiers, setUnlockedModifiers] = useLocalStorage<ModifierId[]>(
@@ -121,7 +118,6 @@ export function Game() {
       stopTimer()
       const id = config.modifier.id
       setBestLevel((b) => Math.max(b, config.level))
-      setMaxClearedLevel((m) => Math.max(m, config.level))
       setStreak((s) => s + 1)
       setTotalWins((w) => w + 1)
       setUnlockedModifiers((prev) => (prev.includes(id) ? prev : [...prev, id]))
@@ -138,7 +134,6 @@ export function Game() {
       config.modifier.id,
       stopTimer,
       setBestLevel,
-      setMaxClearedLevel,
       setStreak,
       setTotalWins,
       setUnlockedModifiers,
@@ -343,15 +338,10 @@ export function Game() {
         totalWins={totalWins}
         theme={theme}
         unlockedModifiers={unlockedModifiers}
-        maxClearedLevel={maxClearedLevel}
         bestTimes={bestTimes}
         onToggleTheme={toggleTheme}
         onRestart={restartCurrent}
         onNewRun={newRun}
-        onJumpToLevel={(lvl) => {
-          setMenuOpen(false)
-          startLevel(lvl)
-        }}
       />
 
       <Overlay

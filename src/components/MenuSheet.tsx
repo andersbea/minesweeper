@@ -48,12 +48,10 @@ interface Props {
   totalWins: number
   theme: Theme
   unlockedModifiers: ModifierId[]
-  maxClearedLevel: number
   bestTimes: Partial<Record<ModifierId, number>>
   onToggleTheme: () => void
   onRestart: () => void
   onNewRun: () => void
-  onJumpToLevel: (level: number) => void
 }
 
 export function MenuSheet({
@@ -68,12 +66,10 @@ export function MenuSheet({
   totalWins,
   theme,
   unlockedModifiers,
-  maxClearedLevel,
   bestTimes,
   onToggleTheme,
   onRestart,
   onNewRun,
-  onJumpToLevel,
 }: Props) {
   // The sheet is unmounted when fully closed so its DOM doesn't sit offscreen.
   // We use CSS keyframe animations (sheet-enter / sheet-exit) instead of
@@ -140,12 +136,10 @@ export function MenuSheet({
             minesLeft={minesLeft}
             seconds={seconds}
             unlockedModifiers={unlockedModifiers}
-            maxClearedLevel={maxClearedLevel}
             onClose={onClose}
             onToggleTheme={onToggleTheme}
             onRestart={onRestart}
             onNewRun={onNewRun}
-            onJumpToLevel={onJumpToLevel}
             onOpenModifiers={() => setView("modifiers")}
           />
         ) : (
@@ -172,12 +166,10 @@ function MainView({
   minesLeft,
   seconds,
   unlockedModifiers,
-  maxClearedLevel,
   onClose,
   onToggleTheme,
   onRestart,
   onNewRun,
-  onJumpToLevel,
   onOpenModifiers,
 }: {
   config: LevelConfig
@@ -189,12 +181,10 @@ function MainView({
   minesLeft: number
   seconds: number
   unlockedModifiers: ModifierId[]
-  maxClearedLevel: number
   onClose: () => void
   onToggleTheme: () => void
   onRestart: () => void
   onNewRun: () => void
-  onJumpToLevel: (level: number) => void
   onOpenModifiers: () => void
 }) {
   const totalModifiers = Object.keys(MODIFIERS).length
@@ -244,12 +234,6 @@ function MainView({
 
       <HUD level={config.level} best={bestLevel} minesLeft={minesLeft} seconds={seconds} />
       <ModifierBanner config={config} palette={palette} />
-
-      <LevelPicker
-        currentLevel={config.level}
-        maxCleared={maxClearedLevel}
-        onPick={onJumpToLevel}
-      />
 
       <button
         type="button"
@@ -335,56 +319,6 @@ function ModifiersView({
         bestTimes={bestTimes}
       />
     </>
-  )
-}
-
-function LevelPicker({
-  currentLevel,
-  maxCleared,
-  onPick,
-}: {
-  currentLevel: number
-  maxCleared: number
-  onPick: (level: number) => void
-}) {
-  // Highest level the player can jump to: one beyond their best clear, or 1 if
-  // they haven't cleared anything yet.
-  const maxSelectable = Math.max(1, maxCleared + 1)
-  const levels = Array.from({ length: maxSelectable }, (_, i) => i + 1)
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">
-          Start at level
-        </span>
-        <span className="text-[10px] text-[var(--color-muted)]">
-          {maxCleared > 0 ? `Cleared up to ${maxCleared}` : "Clear levels to unlock more"}
-        </span>
-      </div>
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-        {levels.map((lvl) => {
-          const isCurrent = lvl === currentLevel
-          return (
-            <button
-              key={lvl}
-              type="button"
-              onClick={() => onPick(lvl)}
-              aria-current={isCurrent ? "true" : undefined}
-              aria-label={`Start at level ${lvl}`}
-              className={cn(
-                "flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 font-mono text-sm font-semibold tabular-nums transition-all active:scale-95",
-                isCurrent
-                  ? "border-transparent text-black bg-[linear-gradient(135deg,var(--color-accent),var(--color-accent-2))]"
-                  : "border-[var(--color-border)] bg-[var(--color-surface-2)]/60 text-[var(--color-fg)] hover:border-[var(--color-accent)]/40",
-              )}
-            >
-              {String(lvl).padStart(2, "0")}
-            </button>
-          )
-        })}
-      </div>
-    </div>
   )
 }
 
