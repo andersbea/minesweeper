@@ -28,7 +28,10 @@ interface Props {
 }
 
 const LONG_PRESS_MS = 280
-const MOVE_TOLERANCE_PX = 14
+// Finger contact points jitter while held — sometimes 30+ px between samples.
+// Keep the threshold generous so a steady press (even a long one) won't get
+// canceled by natural drift. We still reject genuine drags (> ~one cell width).
+const MOVE_TOLERANCE_PX = 48
 
 function CellInner({
   cell,
@@ -125,20 +128,22 @@ function CellInner({
         height: size,
         fontSize: Math.max(11, Math.round(size * 0.45)),
         WebkitTouchCallout: "none",
+        // Stop iOS / Chrome-Mobile from painting their grey "press" overlay.
+        WebkitTapHighlightColor: "transparent",
       }}
       className={cn(
         "relative flex select-none items-center justify-center rounded-md font-mono font-semibold transition-all duration-150 touch-manipulation",
         !isRevealed &&
-          "bg-[var(--color-surface-2)]/80 border border-[var(--color-border)]/80 hover:bg-[var(--color-border)]/70 hover:border-[var(--color-accent)]/40",
+          "bg-[var(--color-surface-2)] border border-[var(--color-border)] hover:bg-[var(--color-border)] hover:border-[var(--color-accent)]/60",
         isRevealed &&
           !cell.mine &&
-          "bg-[var(--color-surface)]/40 border border-[var(--color-border)]/30 cell-reveal",
+          "bg-[var(--color-surface)]/60 border border-[var(--color-border)]/40 cell-reveal",
         isRevealed &&
           cell.mine &&
           (exploded
             ? "bg-[var(--color-danger)]/30 border border-[var(--color-danger)]/60"
-            : "bg-[var(--color-surface)]/30 border border-[var(--color-border)]/30"),
-        isFlagged && "bg-[var(--color-surface-2)]/80 border border-[var(--color-flag)]/40",
+            : "bg-[var(--color-surface)]/40 border border-[var(--color-border)]/40"),
+        isFlagged && "bg-[var(--color-surface-2)] border border-[var(--color-flag)]/60",
       )}
       aria-label={`Cell ${row + 1},${col + 1}`}
     >

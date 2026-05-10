@@ -4,13 +4,16 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  --color-bg: oklch(0.14 0.012 280);
-  --color-surface: oklch(0.18 0.014 280);
-  --color-surface-2: oklch(0.22 0.018 280);
-  --color-border: oklch(0.28 0.018 280);
-  --color-muted: oklch(0.62 0.02 280);
-  --color-fg: oklch(0.96 0.005 280);
-  --color-fg-soft: oklch(0.82 0.01 280);
+  /* Dark-mode tokens. Lightness gaps between layers were too small (~4-6%)
+     so cells/cards were hard to distinguish from the body. Stretched the
+     scale: bg is darker, surfaces / borders are lighter. */
+  --color-bg: oklch(0.1 0.012 280);
+  --color-surface: oklch(0.2 0.014 280);
+  --color-surface-2: oklch(0.28 0.02 280);
+  --color-border: oklch(0.4 0.02 280);
+  --color-muted: oklch(0.66 0.02 280);
+  --color-fg: oklch(0.97 0.005 280);
+  --color-fg-soft: oklch(0.84 0.01 280);
 
   --color-accent: oklch(0.78 0.18 320);
   --color-accent-2: oklch(0.78 0.18 220);

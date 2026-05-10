@@ -71,6 +71,11 @@ export function Game() {
     "ms.unlockedModifiers",
     [],
   )
+  // Fastest clear time (in seconds) per modifier. Recorded when a round is won.
+  const [bestTimes, setBestTimes] = useLocalStorage<Partial<Record<ModifierId, number>>>(
+    "ms.bestTimes",
+    {},
+  )
   const { theme, toggle: toggleTheme } = useTheme()
 
   const palette = useMemo(() => paletteFor(config.paletteSeed), [config.paletteSeed])
@@ -94,11 +99,52 @@ export function Game() {
   }, [])
   useEffect(() => () => stopTimer(), [stopTimer])
 
+  // Pause the timer whenever the menu is open. Resume only if a round is
+  // actively in progress when the menu closes.
+  useEffect(() => {
+    if (menuOpen) stopTimer()
+    else if (status === "playing") startTimer()
+  }, [menuOpen, status, startTimer, stopTimer])
+
   const pushFloat = (text: string) => {
     const id = ++floatId.current
     setFloats((f) => [...f, { id, text }])
     window.setTimeout(() => setFloats((f) => f.filter((x) => x.id !== id)), 900)
   }
+
+  // Shared post-win bookkeeping: persist best/cleared/streak/wins/unlocks/
+  // best-time. Time isn't read off `seconds` state to avoid stale closures —
+  // pass it in explicitly from the caller.
+  const recordWin = useCallback(
+    (clearedSeconds: number) => {
+      setStatus("won")
+      stopTimer()
+      const id = config.modifier.id
+      setBestLevel((b) => Math.max(b, config.level))
+      setMaxClearedLevel((m) => Math.max(m, config.level))
+      setStreak((s) => s + 1)
+      setTotalWins((w) => w + 1)
+      setUnlockedModifiers((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      setBestTimes((prev) => {
+        const prevBest = prev[id]
+        if (prevBest == null || clearedSeconds < prevBest) {
+          return { ...prev, [id]: clearedSeconds }
+        }
+        return prev
+      })
+    },
+    [
+      config.level,
+      config.modifier.id,
+      stopTimer,
+      setBestLevel,
+      setMaxClearedLevel,
+      setStreak,
+      setTotalWins,
+      setUnlockedModifiers,
+      setBestTimes,
+    ],
+  )
 
   const startLevel = useCallback(
     (nextLevel: number, opts?: { force?: LevelConfig["modifier"]["id"] }) => {
@@ -155,28 +201,13 @@ export function Game() {
       setBoard(nextBoard)
 
       if (checkWin(nextBoard)) {
-        setStatus("won")
-        stopTimer()
-        setBestLevel((b) => Math.max(b, config.level))
-        setMaxClearedLevel((m) => Math.max(m, config.level))
-        setStreak((s) => s + 1)
-        setTotalWins((w) => w + 1)
-        const id = config.modifier.id
-        setUnlockedModifiers((prev) => (prev.includes(id) ? prev : [...prev, id]))
+        // Use the timer value that's about to apply this tick — bonusGained
+        // already reduced `seconds`, but the win doesn't grant additional time.
+        const clearedSeconds = Math.max(0, seconds - bonusGained)
+        recordWin(clearedSeconds)
       }
     },
-    [
-      board,
-      config,
-      status,
-      startTimer,
-      stopTimer,
-      setBestLevel,
-      setMaxClearedLevel,
-      setStreak,
-      setTotalWins,
-      setUnlockedModifiers,
-    ],
+    [board, config, status, seconds, startTimer, stopTimer, recordWin],
   )
 
   const handleFlag = useCallback(
@@ -248,28 +279,10 @@ export function Game() {
 
       setBoard(working)
       if (checkWin(working)) {
-        setStatus("won")
-        stopTimer()
-        setBestLevel((b) => Math.max(b, config.level))
-        setMaxClearedLevel((m) => Math.max(m, config.level))
-        setStreak((s) => s + 1)
-        setTotalWins((w) => w + 1)
-        const id = config.modifier.id
-        setUnlockedModifiers((prev) => (prev.includes(id) ? prev : [...prev, id]))
+        recordWin(seconds)
       }
     },
-    [
-      board,
-      status,
-      config.level,
-      config.modifier.id,
-      stopTimer,
-      setBestLevel,
-      setMaxClearedLevel,
-      setStreak,
-      setTotalWins,
-      setUnlockedModifiers,
-    ],
+    [board, status, seconds, recordWin],
   )
 
   const restartCurrent = () => {
@@ -331,6 +344,7 @@ export function Game() {
         theme={theme}
         unlockedModifiers={unlockedModifiers}
         maxClearedLevel={maxClearedLevel}
+        bestTimes={bestTimes}
         onToggleTheme={toggleTheme}
         onRestart={restartCurrent}
         onNewRun={newRun}

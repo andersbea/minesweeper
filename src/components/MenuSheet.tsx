@@ -49,6 +49,7 @@ interface Props {
   theme: Theme
   unlockedModifiers: ModifierId[]
   maxClearedLevel: number
+  bestTimes: Partial<Record<ModifierId, number>>
   onToggleTheme: () => void
   onRestart: () => void
   onNewRun: () => void
@@ -68,6 +69,7 @@ export function MenuSheet({
   theme,
   unlockedModifiers,
   maxClearedLevel,
+  bestTimes,
   onToggleTheme,
   onRestart,
   onNewRun,
@@ -150,6 +152,7 @@ export function MenuSheet({
           <ModifiersView
             palette={palette}
             unlockedModifiers={unlockedModifiers}
+            bestTimes={bestTimes}
             onBack={() => setView("main")}
             onClose={onClose}
           />
@@ -289,11 +292,13 @@ function MainView({
 function ModifiersView({
   palette,
   unlockedModifiers,
+  bestTimes,
   onBack,
   onClose,
 }: {
   palette: Palette
   unlockedModifiers: ModifierId[]
+  bestTimes: Partial<Record<ModifierId, number>>
   onBack: () => void
   onClose: () => void
 }) {
@@ -324,7 +329,11 @@ function ModifiersView({
         Each round randomizes one modifier. Win a round to reveal it here. More modifiers will be
         added over time.
       </p>
-      <ModifierAchievements unlocked={unlockedModifiers} palette={palette} />
+      <ModifierAchievements
+        unlocked={unlockedModifiers}
+        palette={palette}
+        bestTimes={bestTimes}
+      />
     </>
   )
 }
@@ -379,12 +388,20 @@ function LevelPicker({
   )
 }
 
+function fmtTime(seconds: number) {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+}
+
 function ModifierAchievements({
   unlocked,
   palette,
+  bestTimes,
 }: {
   unlocked: ModifierId[]
   palette: Palette
+  bestTimes: Partial<Record<ModifierId, number>>
 }) {
   const ids = Object.keys(MODIFIERS) as ModifierId[]
   const unlockedSet = new Set(unlocked)
@@ -392,55 +409,61 @@ function ModifierAchievements({
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {ids.map((id) => {
-          const mod = MODIFIERS[id]
-          const isUnlocked = unlockedSet.has(id)
-          const Icon = MODIFIER_ICONS[mod.icon] ?? Sparkles
-          return (
+        const mod = MODIFIERS[id]
+        const isUnlocked = unlockedSet.has(id)
+        const Icon = MODIFIER_ICONS[mod.icon] ?? Sparkles
+        const best = bestTimes[id]
+        return (
+          <div
+            key={id}
+            role="group"
+            aria-label={isUnlocked ? mod.name : "Locked modifier"}
+            data-unlocked={isUnlocked ? "true" : "false"}
+            className={cn(
+              "flex items-center gap-2 rounded-xl border p-2 text-left transition-colors",
+              isUnlocked
+                ? "border-[var(--color-border)] bg-[var(--color-surface)]/70"
+                : "border-dashed border-[var(--color-border)]/60 bg-[var(--color-surface-2)]/40",
+            )}
+          >
             <div
-              key={id}
-              role="group"
-              aria-label={isUnlocked ? mod.name : "Locked modifier"}
-              data-unlocked={isUnlocked ? "true" : "false"}
               className={cn(
-                "flex items-center gap-2 rounded-xl border p-2 text-left transition-colors",
-                isUnlocked
-                  ? "border-[var(--color-border)] bg-[var(--color-surface)]/70"
-                  : "border-dashed border-[var(--color-border)]/60 bg-[var(--color-surface-2)]/40",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                isUnlocked ? "text-black" : "bg-[var(--color-surface-2)] text-[var(--color-muted)]",
               )}
+              style={
+                isUnlocked
+                  ? { background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }
+                  : undefined
+              }
             >
+              {isUnlocked ? (
+                <Icon className="h-4 w-4" strokeWidth={2.5} />
+              ) : (
+                <Lock className="h-3.5 w-3.5" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
               <div
                 className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                  isUnlocked ? "text-black" : "bg-[var(--color-surface-2)] text-[var(--color-muted)]",
+                  "truncate text-xs font-semibold",
+                  isUnlocked ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]",
                 )}
-                style={
-                  isUnlocked
-                    ? { background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }
-                    : undefined
-                }
               >
-                {isUnlocked ? (
-                  <Icon className="h-4 w-4" strokeWidth={2.5} />
-                ) : (
-                  <Lock className="h-3.5 w-3.5" />
-                )}
+                {isUnlocked ? mod.name : "???"}
               </div>
-              <div className="min-w-0 flex-1">
-                <div
-                  className={cn(
-                    "truncate text-xs font-semibold",
-                    isUnlocked ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]",
-                  )}
-                >
-                  {isUnlocked ? mod.name : "???"}
-                </div>
-                <div className="truncate text-[10px] text-[var(--color-muted)]">
-                  {isUnlocked ? mod.description : "Win a round to reveal."}
-                </div>
+              <div className="truncate text-[10px] text-[var(--color-muted)]">
+                {isUnlocked ? mod.description : "Win a round to reveal."}
               </div>
             </div>
-          )
-        })}
+            {isUnlocked && best != null && (
+              <div className="ml-1 shrink-0 rounded-md bg-[var(--color-surface-2)] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--color-fg-soft)]">
+                {fmtTime(best)}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -87,7 +87,7 @@ export function Board({
     <div ref={containerRef} className="flex h-full w-full items-center justify-center">
       <div
         className={cn(
-          "rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 backdrop-blur-xl",
+          "rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/85 backdrop-blur-xl",
           "shadow-[0_30px_80px_-30px_color-mix(in_oklch,var(--color-accent)_30%,transparent)]",
           shake && "shake",
         )}
