@@ -1,0 +1,207 @@
+import type { Board, Cell, LevelConfig, ModifierId } from "./types"
+import { MODIFIERS, MODIFIER_POOL } from "./modifiers"
+import { PALETTES } from "./palette"
+
+export function makeEmptyBoard(rows: number, cols: number): Board {
+  return Array.from({ length: rows }, () =>
+    Array.from(
+      { length: cols },
+      (): Cell => ({ mine: false, adjacent: 0, state: "hidden", bonus: false, twin: false }),
+    ),
+  )
+}
+
+const NEIGHBORS: [number, number][] = [
+  [-1, -1], [-1, 0], [-1, 1],
+  [0, -1],           [0, 1],
+  [1, -1],  [1, 0],  [1, 1],
+]
+
+export function inBounds(board: Board, r: number, c: number) {
+  return r >= 0 && r < board.length && c >= 0 && c < board[0].length
+}
+
+function neighbors(board: Board, r: number, c: number) {
+  const out: [number, number][] = []
+  for (const [dr, dc] of NEIGHBORS) {
+    const nr = r + dr
+    const nc = c + dc
+    if (inBounds(board, nr, nc)) out.push([nr, nc])
+  }
+  return out
+}
+
+export function placeMines(
+  board: Board,
+  totalMines: number,
+  safeR: number,
+  safeC: number,
+  modifier: ModifierId,
+): Board {
+  const rows = board.length
+  const cols = board[0].length
+  const safe = new Set<number>()
+  for (const [nr, nc] of neighbors(board, safeR, safeC)) safe.add(nr * cols + nc)
+  safe.add(safeR * cols + safeC)
+
+  const next = board.map((row) => row.map((c) => ({ ...c })))
+
+  let placed = 0
+  let attempts = 0
+  const maxAttempts = rows * cols * 10
+
+  while (placed < totalMines && attempts < maxAttempts) {
+    attempts++
+    const r = Math.floor(Math.random() * rows)
+    const c = Math.floor(Math.random() * cols)
+    if (safe.has(r * cols + c)) continue
+    if (next[r][c].mine) continue
+
+    if (modifier === "twin" && placed + 1 < totalMines) {
+      // Try to place a paired mine on a neighbor.
+      const pool = neighbors(next, r, c).filter(
+        ([nr, nc]) => !next[nr][nc].mine && !safe.has(nr * cols + nc),
+      )
+      if (pool.length === 0) continue
+      const [nr, nc] = pool[Math.floor(Math.random() * pool.length)]
+      next[r][c].mine = true
+      next[r][c].twin = true
+      next[nr][nc].mine = true
+      next[nr][nc].twin = true
+      placed += 2
+    } else {
+      next[r][c].mine = true
+      placed++
+    }
+  }
+
+  // Compute adjacency counts.
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (next[r][c].mine) continue
+      let count = 0
+      for (const [nr, nc] of neighbors(next, r, c)) if (next[nr][nc].mine) count++
+      next[r][c].adjacent = count
+    }
+  }
+
+  return next
+}
+
+export function placeBonusTiles(board: Board, count: number): Board {
+  if (count <= 0) return board
+  const rows = board.length
+  const cols = board[0].length
+  const next = board.map((row) => row.map((c) => ({ ...c })))
+  let placed = 0
+  let attempts = 0
+  while (placed < count && attempts < rows * cols * 5) {
+    attempts++
+    const r = Math.floor(Math.random() * rows)
+    const c = Math.floor(Math.random() * cols)
+    const cell = next[r][c]
+    if (cell.mine || cell.bonus) continue
+    cell.bonus = true
+    placed++
+  }
+  return next
+}
+
+export function revealCascade(board: Board, r: number, c: number): { board: Board; revealed: [number, number][] } {
+  const next = board.map((row) => row.map((c) => ({ ...c })))
+  const revealed: [number, number][] = []
+  const stack: [number, number][] = [[r, c]]
+  while (stack.length) {
+    const [cr, cc] = stack.pop()!
+    const cell = next[cr][cc]
+    if (cell.state !== "hidden") continue
+    cell.state = "revealed"
+    revealed.push([cr, cc])
+    if (cell.adjacent === 0 && !cell.mine) {
+      for (const [nr, nc] of neighbors(next, cr, cc)) {
+        const n = next[nr][nc]
+        if (n.state === "hidden" && !n.mine) stack.push([nr, nc])
+      }
+    }
+  }
+  return { board: next, revealed }
+}
+
+export function toggleFlag(board: Board, r: number, c: number): Board {
+  const cell = board[r][c]
+  if (cell.state === "revealed") return board
+  const next = board.map((row) => row.map((c) => ({ ...c })))
+  next[r][c].state = next[r][c].state === "flagged" ? "hidden" : "flagged"
+  return next
+}
+
+export function revealAllMines(board: Board): Board {
+  return board.map((row) =>
+    row.map((cell) => (cell.mine ? { ...cell, state: "revealed" as const } : cell)),
+  )
+}
+
+export function checkWin(board: Board) {
+  for (const row of board) {
+    for (const cell of row) {
+      if (!cell.mine && cell.state !== "revealed") return false
+    }
+  }
+  return true
+}
+
+export function countFlags(board: Board) {
+  let n = 0
+  for (const row of board) for (const cell of row) if (cell.state === "flagged") n++
+  return n
+}
+
+// ----- Level configuration -----
+
+export function configForLevel(level: number, opts?: { force?: ModifierId }): LevelConfig {
+  // Smooth growth: 9x9 with 10 mines at L1, capping near 18x18 with ~55 mines.
+  const baseRows = Math.min(9 + Math.floor((level - 1) / 2), 18)
+  const baseCols = Math.min(9 + Math.floor((level - 1) / 2), 18)
+  const minePct = 0.13 + Math.min(0.07, (level - 1) * 0.008)
+  let rows = baseRows
+  let cols = baseCols
+  let mines = Math.round(rows * cols * minePct)
+  let bonusTiles = 0
+
+  const modifierId =
+    opts?.force ?? MODIFIER_POOL[Math.floor(Math.random() * MODIFIER_POOL.length)]
+  const modifier = MODIFIERS[modifierId]
+
+  switch (modifier.id) {
+    case "quick":
+      rows = Math.max(7, baseRows - 2)
+      cols = Math.max(7, baseCols - 2)
+      mines = Math.round(rows * cols * (minePct + 0.03))
+      break
+    case "dense":
+      mines = Math.round(rows * cols * (minePct + 0.04))
+      break
+    case "bonus":
+      bonusTiles = 2 + Math.floor(level / 3)
+      break
+    case "twin":
+      // Round mines down to even count so all can pair.
+      if (mines % 2 === 1) mines += 1
+      break
+    default:
+      break
+  }
+
+  // Clamp to leave at least a 9-cell safe region around first click.
+  mines = Math.min(mines, rows * cols - 9)
+
+  return {
+    rows,
+    cols,
+    mines,
+    bonusTiles,
+    modifier,
+    paletteSeed: Math.floor(Math.random() * PALETTES.length),
+    level,
+  }
+}

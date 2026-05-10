@@ -1,0 +1,320 @@
+import { useEffect, useState } from "react"
+import {
+  Cloud,
+  Link2,
+  Lock,
+  Moon,
+  MousePointerClick,
+  RotateCcw,
+  Sparkles,
+  Sun,
+  Target,
+  Waves,
+  X,
+  Zap,
+  type LucideIcon,
+} from "lucide-react"
+import type { LevelConfig, ModifierId } from "@/game/types"
+import type { Palette } from "@/game/palette"
+import type { Theme } from "@/hooks/useTheme"
+import { MODIFIERS } from "@/game/modifiers"
+import { Button } from "./ui/button"
+import { Badge } from "./ui/badge"
+import { ModifierBanner } from "./ModifierBanner"
+import { HUD } from "./HUD"
+import { cn } from "@/lib/utils"
+
+const MODIFIER_ICONS: Record<string, LucideIcon> = {
+  Cloud,
+  Link2,
+  Sparkles,
+  Target,
+  Waves,
+  Zap,
+}
+
+interface Props {
+  open: boolean
+  onClose: () => void
+  config: LevelConfig
+  palette: Palette
+  bestLevel: number
+  minesLeft: number
+  seconds: number
+  streak: number
+  totalWins: number
+  theme: Theme
+  unlockedModifiers: ModifierId[]
+  maxClearedLevel: number
+  onToggleTheme: () => void
+  onRestart: () => void
+  onNewRun: () => void
+  onJumpToLevel: (level: number) => void
+}
+
+export function MenuSheet({
+  open,
+  onClose,
+  config,
+  palette,
+  bestLevel,
+  minesLeft,
+  seconds,
+  streak,
+  totalWins,
+  theme,
+  unlockedModifiers,
+  maxClearedLevel,
+  onToggleTheme,
+  onRestart,
+  onNewRun,
+  onJumpToLevel,
+}: Props) {
+  // The sheet is unmounted when fully closed so its DOM doesn't sit offscreen.
+  // We use CSS keyframe animations (sheet-enter / sheet-exit) instead of
+  // class-toggled transitions because keyframes have a fixed `from`, so the
+  // slide-up reliably plays even on the very first mount.
+  const [mounted, setMounted] = useState(open)
+  const [closing, setClosing] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      setClosing(false)
+    } else if (mounted) {
+      setClosing(true)
+      const t = window.setTimeout(() => {
+        setMounted(false)
+        setClosing(false)
+      }, 300)
+      return () => clearTimeout(t)
+    }
+  }, [open, mounted])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [open, onClose])
+
+  if (!mounted) return null
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-md ${
+          closing ? "scrim-exit pointer-events-none" : "scrim-enter"
+        }`}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Game menu"
+        className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[90svh] w-full max-w-2xl flex-col gap-3 overflow-y-auto rounded-t-3xl border border-x-0 border-b-0 border-[var(--color-border)] bg-[var(--color-surface)]/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-xl sm:border-x sm:p-5 ${
+          closing ? "sheet-exit" : "sheet-enter"
+        }`}
+      >
+        <div className="mx-auto h-1 w-10 rounded-full bg-[var(--color-border)] sm:hidden" />
+
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[var(--color-muted)]">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
+              />
+              Minesweeper
+            </div>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--color-fg)]">
+              Level{" "}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{ backgroundImage: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
+              >
+                {String(config.level).padStart(2, "0")}
+              </span>
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onToggleTheme}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" size="icon" onClick={onClose} aria-label="Close menu">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">
+            <Sparkles className="h-3 w-3" />
+            Streak {streak}
+          </Badge>
+          <Badge variant="outline">{totalWins} total wins</Badge>
+        </div>
+
+        <HUD level={config.level} best={bestLevel} minesLeft={minesLeft} seconds={seconds} />
+        <ModifierBanner config={config} palette={palette} />
+
+        <LevelPicker
+          currentLevel={config.level}
+          maxCleared={maxClearedLevel}
+          onPick={onJumpToLevel}
+        />
+
+        <ModifierAchievements unlocked={unlockedModifiers} palette={palette} />
+
+        <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+          <MousePointerClick className="h-3.5 w-3.5" />
+          <span>Tap to reveal · long-press or right-click to flag · tap a number to chord.</span>
+        </div>
+
+        <div className="mt-1 flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onRestart}>
+            <RotateCcw className="h-4 w-4" /> Restart level
+          </Button>
+          <Button variant="ghost" className="flex-1" onClick={onNewRun}>
+            New run
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function LevelPicker({
+  currentLevel,
+  maxCleared,
+  onPick,
+}: {
+  currentLevel: number
+  maxCleared: number
+  onPick: (level: number) => void
+}) {
+  // Highest level the player can jump to: one beyond their best clear, or 1 if
+  // they haven't cleared anything yet.
+  const maxSelectable = Math.max(1, maxCleared + 1)
+  const levels = Array.from({ length: maxSelectable }, (_, i) => i + 1)
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">
+          Start at level
+        </span>
+        <span className="text-[10px] text-[var(--color-muted)]">
+          {maxCleared > 0 ? `Cleared up to ${maxCleared}` : "Clear levels to unlock more"}
+        </span>
+      </div>
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {levels.map((lvl) => {
+          const isCurrent = lvl === currentLevel
+          return (
+            <button
+              key={lvl}
+              type="button"
+              onClick={() => onPick(lvl)}
+              aria-current={isCurrent ? "true" : undefined}
+              aria-label={`Start at level ${lvl}`}
+              className={cn(
+                "flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 font-mono text-sm font-semibold tabular-nums transition-all active:scale-95",
+                isCurrent
+                  ? "border-transparent text-black bg-[linear-gradient(135deg,var(--color-accent),var(--color-accent-2))]"
+                  : "border-[var(--color-border)] bg-[var(--color-surface-2)]/60 text-[var(--color-fg)] hover:border-[var(--color-accent)]/40",
+              )}
+            >
+              {String(lvl).padStart(2, "0")}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ModifierAchievements({
+  unlocked,
+  palette,
+}: {
+  unlocked: ModifierId[]
+  palette: Palette
+}) {
+  const ids = Object.keys(MODIFIERS) as ModifierId[]
+  const total = ids.length
+  const unlockedSet = new Set(unlocked)
+  const found = unlockedSet.size
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">
+          Modifiers discovered
+        </span>
+        <span className="text-[10px] font-mono text-[var(--color-muted)]">
+          {found}/{total}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {ids.map((id) => {
+          const mod = MODIFIERS[id]
+          const isUnlocked = unlockedSet.has(id)
+          const Icon = MODIFIER_ICONS[mod.icon] ?? Sparkles
+          return (
+            <div
+              key={id}
+              role="group"
+              aria-label={isUnlocked ? mod.name : "Locked modifier"}
+              data-unlocked={isUnlocked ? "true" : "false"}
+              className={cn(
+                "flex items-center gap-2 rounded-xl border p-2 text-left transition-colors",
+                isUnlocked
+                  ? "border-[var(--color-border)] bg-[var(--color-surface)]/70"
+                  : "border-dashed border-[var(--color-border)]/60 bg-[var(--color-surface-2)]/40",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                  isUnlocked ? "text-black" : "bg-[var(--color-surface-2)] text-[var(--color-muted)]",
+                )}
+                style={
+                  isUnlocked
+                    ? { background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }
+                    : undefined
+                }
+              >
+                {isUnlocked ? (
+                  <Icon className="h-4 w-4" strokeWidth={2.5} />
+                ) : (
+                  <Lock className="h-3.5 w-3.5" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div
+                  className={cn(
+                    "truncate text-xs font-semibold",
+                    isUnlocked ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]",
+                  )}
+                >
+                  {isUnlocked ? mod.name : "???"}
+                </div>
+                <div className="truncate text-[10px] text-[var(--color-muted)]">
+                  {isUnlocked ? mod.description : "Win a round to reveal."}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
