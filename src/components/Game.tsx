@@ -11,6 +11,7 @@ import {
   revealCascade,
   toggleFlag,
 } from "@/game/engine"
+import { MODIFIERS } from "@/game/modifiers"
 import type { Board as BoardT, GameStatus, LevelConfig, ModifierId } from "@/game/types"
 import { paletteFor } from "@/game/palette"
 import { Board } from "./Board"
@@ -28,6 +29,46 @@ interface FloatText {
   text: string
 }
 
+// Full snapshot of the round in progress, saved to localStorage so a refresh
+// (or app close) drops the player back exactly where they were — same board,
+// same modifier, same revealed cells, same timer value.
+interface ActiveRound {
+  level: number
+  rows: number
+  cols: number
+  mines: number
+  bonusTiles: number
+  modifierId: ModifierId
+  paletteSeed: number
+  board: BoardT
+  status: GameStatus
+  seconds: number
+  exploded: [number, number] | null
+}
+
+const ACTIVE_ROUND_KEY = "ms.activeRound"
+
+function readActiveRound(): ActiveRound | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_ROUND_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    // Defensive validation: a corrupt or stale snapshot shouldn't crash the app.
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      typeof parsed.level !== "number" ||
+      !Array.isArray(parsed.board) ||
+      !MODIFIERS[parsed.modifierId as ModifierId]
+    )
+      return null
+    return parsed as ActiveRound
+  } catch {
+    return null
+  }
+}
+
 function readPersistedLevel(): number {
   if (typeof window === "undefined") return 1
   try {
@@ -40,17 +81,34 @@ function readPersistedLevel(): number {
   }
 }
 
+function configFromSaved(saved: ActiveRound): LevelConfig {
+  return {
+    level: saved.level,
+    rows: saved.rows,
+    cols: saved.cols,
+    mines: saved.mines,
+    bonusTiles: saved.bonusTiles,
+    modifier: MODIFIERS[saved.modifierId],
+    paletteSeed: saved.paletteSeed,
+  }
+}
+
 export function Game() {
-  // Restore the player's current level on first mount so closing & re-opening
-  // the app drops them back where they were.
+  // Try to restore an in-flight round first. Falls back to "fresh round at
+  // the persisted current level" if nothing was saved.
+  const savedRound = readActiveRound()
   const initialLevel = readPersistedLevel()
   const [config, setConfig] = useState<LevelConfig>(() =>
-    configForLevel(initialLevel, initialLevel === 1 ? { force: "calm" } : undefined),
+    savedRound
+      ? configFromSaved(savedRound)
+      : configForLevel(initialLevel, initialLevel === 1 ? { force: "calm" } : undefined),
   )
-  const [board, setBoard] = useState<BoardT>(() => makeEmptyBoard(config.rows, config.cols))
-  const [status, setStatus] = useState<GameStatus>("ready")
-  const [seconds, setSeconds] = useState(0)
-  const [exploded, setExploded] = useState<[number, number] | null>(null)
+  const [board, setBoard] = useState<BoardT>(() =>
+    savedRound ? savedRound.board : makeEmptyBoard(config.rows, config.cols),
+  )
+  const [status, setStatus] = useState<GameStatus>(savedRound?.status ?? "ready")
+  const [seconds, setSeconds] = useState(savedRound?.seconds ?? 0)
+  const [exploded, setExploded] = useState<[number, number] | null>(savedRound?.exploded ?? null)
   const [shake, setShake] = useState(false)
   const [floats, setFloats] = useState<FloatText[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
@@ -81,6 +139,29 @@ export function Game() {
     document.body.style.setProperty("--gradient-a", palette.a)
     document.body.style.setProperty("--gradient-b", palette.b)
   }, [palette])
+
+  // Persist a snapshot of the round on every change to board/status/seconds/
+  // exploded/config. Refreshing or reopening the app rehydrates from this.
+  useEffect(() => {
+    const round: ActiveRound = {
+      level: config.level,
+      rows: config.rows,
+      cols: config.cols,
+      mines: config.mines,
+      bonusTiles: config.bonusTiles,
+      modifierId: config.modifier.id,
+      paletteSeed: config.paletteSeed,
+      board,
+      status,
+      seconds,
+      exploded,
+    }
+    try {
+      localStorage.setItem(ACTIVE_ROUND_KEY, JSON.stringify(round))
+    } catch {
+      // Out of quota or disabled — degrade silently rather than crash.
+    }
+  }, [config, board, status, seconds, exploded])
 
   const minesLeft = Math.max(0, config.mines - countFlags(board))
 
