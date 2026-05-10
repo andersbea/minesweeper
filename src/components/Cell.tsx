@@ -59,17 +59,9 @@ function CellInner({
     }
   }
 
-  // Primary action when the user taps a hidden cell. In normal mode this is
-  // reveal; in flag mode it's flag — and long-press swaps them.
-  const primaryHidden = (alternate: boolean) => {
-    const flag = flagMode !== alternate
-    if (flag) onFlag(row, col)
-    else onReveal(row, col)
-  }
-
   const handleClick = (e: React.MouseEvent) => {
     if (longPressFired.current) {
-      // Long-press already triggered the secondary action — suppress the click.
+      // Long-press already triggered the flag — suppress the click.
       longPressFired.current = false
       return
     }
@@ -81,7 +73,9 @@ function CellInner({
       if (cell.adjacent > 0) onChord(row, col)
       return
     }
-    primaryHidden(false)
+    // Single-tap on a hidden cell: reveal by default, flag when in flag mode.
+    if (flagMode) onFlag(row, col)
+    else onReveal(row, col)
   }
 
   const handleContext = (e: React.MouseEvent) => {
@@ -96,10 +90,10 @@ function CellInner({
     clearTimer()
     longPressTimer.current = window.setTimeout(() => {
       longPressFired.current = true
-      // Long-press = the alternate of whatever the primary action is.
-      // On a revealed cell, long-press isn't useful, so do nothing.
+      // Long-press is ALWAYS flag, regardless of flagMode. flagMode only
+      // changes single-tap behaviour. Skip on revealed cells (no-op).
       if (!isRevealed) {
-        primaryHidden(true)
+        onFlag(row, col)
         if ("vibrate" in navigator) navigator.vibrate(15)
       }
     }, LONG_PRESS_MS)

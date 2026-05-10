@@ -97,6 +97,66 @@ test("flagging and clicking a satisfied number reveals all other neighbours", as
   expect(after.hidden).toBeLessThan(before.hidden)
 })
 
+test("long-press flags a cell on touch — independent of flag-mode", async ({ page }) => {
+  await page.goto("/")
+
+  async function longPress(label: string) {
+    const cell = page.locator(`button[aria-label='${label}']`)
+    const box = await cell.boundingBox()
+    if (!box) throw new Error(`No bounding box for ${label}`)
+    const cx = box.x + box.width / 2
+    const cy = box.y + box.height / 2
+    // Send a synthetic touch press, hold past LONG_PRESS_MS (280ms), then release.
+    await page.evaluate(
+      ([sel, x, y]) => {
+        const el = document.querySelector(sel as string) as HTMLElement
+        if (!el) throw new Error("missing")
+        const fire = (type: string) =>
+          el.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              pointerType: "touch",
+              clientX: x as number,
+              clientY: y as number,
+              isPrimary: true,
+            }),
+          )
+        fire("pointerdown")
+      },
+      [`button[aria-label='${label}']`, cx, cy],
+    )
+    await page.waitForTimeout(360) // > LONG_PRESS_MS
+    await page.evaluate(
+      ([sel, x, y]) => {
+        const el = document.querySelector(sel as string) as HTMLElement
+        const fire = (type: string) =>
+          el.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              pointerType: "touch",
+              clientX: x as number,
+              clientY: y as number,
+              isPrimary: true,
+            }),
+          )
+        fire("pointerup")
+      },
+      [`button[aria-label='${label}']`, cx, cy],
+    )
+  }
+
+  // 1) Default mode (single tap = reveal). Long-press should flag.
+  await longPress("Cell 1,1")
+  await expect(page.getByLabel("Cell 1,1").locator("svg.lucide-flag")).toBeVisible()
+
+  // 2) Flip into flag-mode (single tap = flag). Long-press should STILL flag.
+  await page.getByLabel("Switch to flag mode").click()
+  await longPress("Cell 1,3")
+  await expect(page.getByLabel("Cell 1,3").locator("svg.lucide-flag")).toBeVisible()
+})
+
 test("flag-mode toggle inverts tap behaviour", async ({ page }) => {
   await page.goto("/")
   await page.getByLabel("Switch to flag mode").click()
