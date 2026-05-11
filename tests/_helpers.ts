@@ -119,20 +119,26 @@ export async function expectNoOverflow(page: Page) {
       const vw = window.innerWidth
       const vh = window.innerHeight
       const offenders: { tag: string; cls: string; w: number; h: number }[] = []
-      // Children of scrollable containers (e.g. the menu sheet's
-      // overflow-y-auto body) can sit beyond the viewport because the
-      // scroll-clip hides them; that's not a layout bug.
+      // Children of scrollable OR overflow:hidden containers can legitimately
+      // sit beyond the viewport because the clip hides them; that's not a
+      // layout bug. We treat positioned (fixed/absolute/sticky) overflow:hidden
+      // ancestors as clip contexts just like scroll containers — they cut off
+      // their children visually. We exclude static/relative parents with
+      // overflow:hidden (e.g. a card with border-radius) since those don't
+      // relate to viewport overflow.
       const isInsideScrollContainer = (el: Element) => {
         let p: Element | null = el.parentElement
         while (p) {
           const cs = getComputedStyle(p)
-          if (
+          const isScrollable =
             cs.overflowY === "auto" ||
             cs.overflowY === "scroll" ||
             cs.overflowX === "auto" ||
             cs.overflowX === "scroll"
-          )
-            return true
+          const isPositionedClip =
+            (cs.position === "fixed" || cs.position === "absolute" || cs.position === "sticky") &&
+            (cs.overflowX === "hidden" || cs.overflowY === "hidden")
+          if (isScrollable || isPositionedClip) return true
           p = p.parentElement
         }
         return false

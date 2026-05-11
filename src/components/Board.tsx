@@ -4,7 +4,6 @@ import type { Board as BoardT } from "@/game/types"
 import { Cell } from "./Cell"
 import { cn } from "@/lib/utils"
 
-const MIN_SCALE = 0.6
 const MAX_SCALE = 2.5
 
 // Fit a grid of `rows × cols` cells inside `width × height`. Cells are kept
@@ -57,10 +56,15 @@ export function Board({
   const cols = board[0]?.length ?? 0
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
-  // Zoom level (1 = neutral; clamped by MIN_SCALE / MAX_SCALE).
+  // Zoom level (1 = neutral; max is MAX_SCALE, min is computed dynamically
+  // so the board can always be fully zoomed-out into view).
   const [scale, setScale] = useState(1)
   const scaleRef = useRef(1)
   scaleRef.current = scale
+  // minScaleRef is updated every render (below) so the pinch handler — which
+  // is only attached once — always reads the current value without needing a
+  // re-bind.
+  const minScaleRef = useRef(0.4)
 
   useEffect(() => {
     const el = containerRef.current
@@ -120,7 +124,7 @@ export function Board({
       const c = centroid(e.touches)
       const pointer = { x: c.x - rect.left, y: c.y - rect.top }
       const next = Math.max(
-        MIN_SCALE,
+        minScaleRef.current,
         Math.min(MAX_SCALE, pinch.scale * (d / pinch.dist)),
       )
 
@@ -164,8 +168,36 @@ export function Board({
 
   const naturalWidth = padding * 2 + cols * cellSize + Math.max(0, cols - 1) * gap
   const naturalHeight = padding * 2 + rows * cellSize + Math.max(0, rows - 1) * gap
+
+  // Minimum scale: always allow zooming out until the board fits the viewport.
+  // Floor at 0.2 so tiny boards don't get weirdly microscopic.
+  const minScale =
+    containerSize.width > 0 && naturalWidth > 0
+      ? Math.max(
+          0.2,
+          Math.min(
+            1, // never force zoom-in beyond 1:1 just to "fit"
+            (containerSize.width - 32) / naturalWidth, // 32 = 2×16px padding
+            (containerSize.height - 24) / naturalHeight, // 24 = 2×12px padding
+          ),
+        )
+      : 0.4
+  minScaleRef.current = minScale
+
   const scaledWidth = naturalWidth * scale
   const scaledHeight = naturalHeight * scale
+
+  // Whenever the board fits entirely inside the viewport, snap scroll to 0
+  // so m-auto can centre it. This keeps the board centred after zooming out
+  // and prevents a stale scroll offset from hiding part of it.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    if (scaledWidth + 32 <= containerSize.width && scaledHeight + 24 <= containerSize.height) {
+      el.scrollLeft = 0
+      el.scrollTop = 0
+    }
+  }, [scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fog modifier: a revealed cell shows its number only if it borders the
   // unexplored area (i.e. has at least one hidden, non-flagged neighbour).

@@ -23,6 +23,20 @@ const ITEM_ICONS: Record<ItemType, LucideIcon> = {
   pick: Dice5,
   scan: Radar,
 }
+
+// Two gradient blob colours (a = top-right, b = bottom-left) per modifier.
+// Applied as --gradient-a / --gradient-b CSS custom properties on :root so
+// the animated background blobs in App.tsx pick them up automatically.
+const MODIFIER_GRADIENTS: Record<ModifierId, [string, string]> = {
+  calm:   ["oklch(0.78 0.18 220)", "oklch(0.75 0.15 180)"], // blue / cyan
+  fog:    ["oklch(0.65 0.08 260)", "oklch(0.65 0.06 300)"], // slate / lavender
+  bonus:  ["oklch(0.82 0.16 80)",  "oklch(0.78 0.18 40)"],  // gold / amber
+  twin:   ["oklch(0.72 0.21 15)",  "oklch(0.75 0.15 340)"], // red / magenta
+  quick:  ["oklch(0.80 0.18 145)", "oklch(0.75 0.15 170)"], // green / teal
+  dense:  ["oklch(0.72 0.21 35)",  "oklch(0.75 0.18 60)"],  // orange / gold
+  big:    ["oklch(0.72 0.18 285)", "oklch(0.75 0.15 310)"], // violet / purple
+  sniper: ["oklch(0.76 0.16 195)", "oklch(0.73 0.13 220)"], // teal / blue
+}
 import type { Board as BoardT, GameStatus, LevelConfig, ModifierId } from "@/game/types"
 import { paletteFor } from "@/game/palette"
 import { ItemsBar } from "./ItemsBar"
@@ -211,6 +225,13 @@ export function Game() {
     }
   }, [])
 
+  // Keep the animated background blob colours in sync with the active modifier.
+  useEffect(() => {
+    const [a, b] = MODIFIER_GRADIENTS[config.modifier.id]
+    document.documentElement.style.setProperty("--gradient-a", a)
+    document.documentElement.style.setProperty("--gradient-b", b)
+  }, [config.modifier.id])
+
   // Persist a snapshot of the round on every change to board/status/seconds/
   // exploded/config. Refreshing or reopening the app rehydrates from this.
   useEffect(() => {
@@ -384,18 +405,15 @@ export function Game() {
           (item, idx) => item === "life" && !(itemLocks[idx] ?? false),
         )
         if (activeLifeIdx !== -1) {
+          // Defuse the mine: mark it as a safe flagged cell so the player can
+          // see where Extra Life fired. We intentionally do NOT adjust the
+          // adjacent counts of neighbouring cells — the flag satisfies the
+          // original count (that number was computed including this mine), and
+          // since the mine is gone, any subsequent chord on those cells is
+          // safe. Decrementing the counts would instead produce a mismatch
+          // where a flag + lower count triggers a dangerous auto-chord.
           const defused = working.map((row) => row.map((c) => ({ ...c })))
           defused[r][c] = { ...defused[r][c], mine: false, state: "flagged" }
-          // Recompute adjacency for the cell's neighbours since a mine vanished.
-          for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-              if (dr === 0 && dc === 0) continue
-              const nr = r + dr
-              const nc = c + dc
-              if (nr < 0 || nc < 0 || nr >= defused.length || nc >= defused[0].length) continue
-              if (!defused[nr][nc].mine) defused[nr][nc].adjacent--
-            }
-          }
           setBoard(defused)
           setItems((prev) => {
             const next = [...prev]
@@ -503,20 +521,12 @@ export function Game() {
         if (working[nr][nc].state !== "hidden") continue
         if (working[nr][nc].mine) {
           if (activeLifeIdx !== -1 && !lifeUsed) {
-            // Defuse with Extra Life: flag the cell, recompute adjacency for
-            // its neighbours, then continue the chord.
+            // Defuse with Extra Life: flag the cell, keep adjacent counts
+            // unchanged (the flag naturally satisfies the original count),
+            // then continue the chord for the remaining hidden neighbours.
             lifeUsed = true
             const defused = working.map((row) => row.map((c2) => ({ ...c2 })))
             defused[nr][nc] = { ...defused[nr][nc], mine: false, state: "flagged" }
-            for (let dr2 = -1; dr2 <= 1; dr2++) {
-              for (let dc2 = -1; dc2 <= 1; dc2++) {
-                if (dr2 === 0 && dc2 === 0) continue
-                const nr2 = nr + dr2
-                const nc2 = nc + dc2
-                if (nr2 < 0 || nc2 < 0 || nr2 >= defused.length || nc2 >= defused[0].length) continue
-                if (!defused[nr2][nc2].mine) defused[nr2][nc2].adjacent--
-              }
-            }
             working = defused
             continue
           }

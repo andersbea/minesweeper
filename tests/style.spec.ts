@@ -102,13 +102,16 @@ test("flag-mode toggle changes its computed appearance", async ({ page }) => {
   expect(on).not.toBe(off)
 })
 
-test("body background contains the round's gradient palette", async ({ page }) => {
+test("background blobs carry a radial-gradient tied to the active modifier", async ({ page }) => {
   await page.goto("/")
   await dismissIntro(page)
-  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundImage)
+  // Gradient blobs are rendered as .bg-blob-a / .bg-blob-b fixed divs in
+  // App.tsx; their colour is driven by --gradient-a/b set per modifier.
+  const bg = await page.evaluate(
+    () => getComputedStyle(document.querySelector(".bg-blob-a")!).backgroundImage,
+  )
   expect(bg).toMatch(/radial-gradient/)
-  // The CSS uses `oklch(...)` colours, so the computed value should expose
-  // some oklch-derived rgba expressions.
+  // Should be a non-trivial computed value (the color-mix resolves to rgba…)
   expect(bg.length).toBeGreaterThan(50)
 })
 
