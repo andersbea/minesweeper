@@ -106,45 +106,43 @@ test("long-press flags a cell on touch — independent of flag-mode", async ({ p
     if (!box) throw new Error(`No bounding box for ${label}`)
     const cx = box.x + box.width / 2
     const cy = box.y + box.height / 2
-    // Send a synthetic touch press, hold past LONG_PRESS_MS (280ms), then release.
-    await page.evaluate(
-      ([sel, x, y]) => {
-        const el = document.querySelector(sel as string) as HTMLElement
-        if (!el) throw new Error("missing")
-        const fire = (type: string) =>
+    // Cell.tsx listens for native TouchEvents, not PointerEvents. Dispatch a
+    // matching synthetic Touch sequence: touchstart, then later touchend.
+    const dispatch = async (type: "touchstart" | "touchend") => {
+      await page.evaluate(
+        ([sel, x, y, t]) => {
+          const el = document.querySelector(sel as string) as HTMLElement
+          if (!el) throw new Error("missing")
+          const touch = new Touch({
+            identifier: 1,
+            target: el,
+            clientX: x as number,
+            clientY: y as number,
+            screenX: x as number,
+            screenY: y as number,
+            pageX: x as number,
+            pageY: y as number,
+            radiusX: 5,
+            radiusY: 5,
+            rotationAngle: 0,
+            force: 1,
+          })
           el.dispatchEvent(
-            new PointerEvent(type, {
+            new TouchEvent(t as string, {
               bubbles: true,
               cancelable: true,
-              pointerType: "touch",
-              clientX: x as number,
-              clientY: y as number,
-              isPrimary: true,
+              touches: t === "touchend" ? [] : [touch],
+              targetTouches: t === "touchend" ? [] : [touch],
+              changedTouches: [touch],
             }),
           )
-        fire("pointerdown")
-      },
-      [`button[aria-label='${label}']`, cx, cy],
-    )
+        },
+        [`button[aria-label='${label}']`, cx, cy, type],
+      )
+    }
+    await dispatch("touchstart")
     await page.waitForTimeout(360) // > LONG_PRESS_MS
-    await page.evaluate(
-      ([sel, x, y]) => {
-        const el = document.querySelector(sel as string) as HTMLElement
-        const fire = (type: string) =>
-          el.dispatchEvent(
-            new PointerEvent(type, {
-              bubbles: true,
-              cancelable: true,
-              pointerType: "touch",
-              clientX: x as number,
-              clientY: y as number,
-              isPrimary: true,
-            }),
-          )
-        fire("pointerup")
-      },
-      [`button[aria-label='${label}']`, cx, cy],
-    )
+    await dispatch("touchend")
   }
 
   // 1) Default mode (single tap = reveal). Long-press should flag.

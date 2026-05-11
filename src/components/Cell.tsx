@@ -1,4 +1,4 @@
-import { memo, useRef } from "react"
+import { memo, useEffect, useRef } from "react"
 import { Bomb, Flag, Sparkles } from "lucide-react"
 import type { Cell as CellT } from "@/game/types"
 import { cn } from "@/lib/utils"
@@ -28,9 +28,8 @@ interface Props {
 }
 
 const LONG_PRESS_MS = 280
-// Finger contact points jitter while held — sometimes 30+ px between samples.
-// Keep the threshold generous so a steady press (even a long one) won't get
-// canceled by natural drift. We still reject genuine drags (> ~one cell width).
+// Finger contact points jitter during a long hold — sometimes 30+ px between
+// samples. Generous threshold so a steady press isn't canceled by drift.
 const MOVE_TOLERANCE_PX = 48
 
 function CellInner({
@@ -47,27 +46,100 @@ function CellInner({
 }: Props) {
   const isRevealed = cell.state === "revealed"
   const isFlagged = cell.state === "flagged"
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
 
-  const longPressTimer = useRef<number | null>(null)
-  const longPressFired = useRef(false)
-  const startPos = useRef<{ x: number; y: number } | null>(null)
+  // Live ref into the latest props/state. The native touch listener below is
+  // attached once and reads from this ref every fire — that way it always
+  // sees the current `flagMode`, `cell`, etc. without needing to be
+  // re-bound on every render.
+  const live = useRef({ isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col })
+  live.current = { isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col }
 
-  const clearTimer = () => {
-    if (longPressTimer.current != null) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
+  // Bind native touch listeners with passive:false so we can preventDefault.
+  // This stops the browser from generating the synthetic click event after
+  // the touch ends — eliminating the entire class of bugs around Android /
+  // iOS re-dispatching clicks after their own gesture engines (selection,
+  // context-menu, drag) intercept a long touch. We make all flag/reveal
+  // decisions inside touchend.
+  useEffect(() => {
+    const el = buttonRef.current
+    if (!el) return
+
+    let timer: number | null = null
+    let longPressFired = false
+    let startX = 0
+    let startY = 0
+    const clearTimer = () => {
+      if (timer != null) {
+        clearTimeout(timer)
+        timer = null
+      }
     }
-  }
 
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return
+      // preventDefault on touchstart: stops the browser from emitting click
+      // events AND stops Android's selection / drag gesture initiation.
+      e.preventDefault()
+      const t = e.touches[0]
+      startX = t.clientX
+      startY = t.clientY
+      longPressFired = false
+      clearTimer()
+      timer = window.setTimeout(() => {
+        longPressFired = true
+        // Long-press is always a flag; ignore on already-revealed cells.
+        if (!live.current.isRevealed) {
+          live.current.onFlag(live.current.row, live.current.col)
+          if ("vibrate" in navigator) navigator.vibrate(15)
+        }
+      }, LONG_PRESS_MS)
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0]
+      if (!t) return
+      const dx = t.clientX - startX
+      const dy = t.clientY - startY
+      if (dx * dx + dy * dy > MOVE_TOLERANCE_PX * MOVE_TOLERANCE_PX) clearTimer()
+    }
+
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault()
+      clearTimer()
+      if (longPressFired) return // long-press already acted
+
+      // Short tap: replicate the mouse-click behaviour.
+      const { isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col } = live.current
+      if (isRevealed) {
+        if (cell.adjacent > 0) onChord(row, col)
+        return
+      }
+      if (flagMode) onFlag(row, col)
+      else onReveal(row, col)
+    }
+
+    const onTouchCancel = () => {
+      clearTimer()
+      longPressFired = false
+    }
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false })
+    el.addEventListener("touchmove", onTouchMove, { passive: true })
+    el.addEventListener("touchend", onTouchEnd, { passive: false })
+    el.addEventListener("touchcancel", onTouchCancel, { passive: true })
+    return () => {
+      clearTimer()
+      el.removeEventListener("touchstart", onTouchStart)
+      el.removeEventListener("touchmove", onTouchMove)
+      el.removeEventListener("touchend", onTouchEnd)
+      el.removeEventListener("touchcancel", onTouchCancel)
+    }
+  }, [])
+
+  // Mouse / keyboard path: regular click handler. Touch never reaches this
+  // because touchstart called preventDefault.
   const handleClick = (e: React.MouseEvent) => {
-    if (longPressFired.current) {
-      // Long-press already placed the flag — swallow this synthetic click.
-      // We do NOT reset longPressFired here; some browsers (notably iOS
-      // Safari after a held touch) fire two click events for the same
-      // release, and resetting after the first would let the second toggle
-      // the flag back off. The next pointerdown will reset it instead.
-      return
-    }
     if (e.shiftKey || e.altKey) {
       onFlag(row, col)
       return
@@ -76,7 +148,6 @@ function CellInner({
       if (cell.adjacent > 0) onChord(row, col)
       return
     }
-    // Single-tap on a hidden cell: reveal by default, flag when in flag mode.
     if (flagMode) onFlag(row, col)
     else onReveal(row, col)
   }
@@ -86,46 +157,20 @@ function CellInner({
     if (!isRevealed) onFlag(row, col)
   }
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType !== "touch") return
-    longPressFired.current = false
-    startPos.current = { x: e.clientX, y: e.clientY }
-    clearTimer()
-    longPressTimer.current = window.setTimeout(() => {
-      longPressFired.current = true
-      // Long-press is ALWAYS flag, regardless of flagMode. flagMode only
-      // changes single-tap behaviour. Skip on revealed cells (no-op).
-      if (!isRevealed) {
-        onFlag(row, col)
-        if ("vibrate" in navigator) navigator.vibrate(15)
-      }
-    }, LONG_PRESS_MS)
-  }
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (e.pointerType !== "touch" || !startPos.current) return
-    const dx = e.clientX - startPos.current.x
-    const dy = e.clientY - startPos.current.y
-    if (dx * dx + dy * dy > MOVE_TOLERANCE_PX * MOVE_TOLERANCE_PX) clearTimer()
-  }
-
   const showNumber = isRevealed && !cell.mine && cell.adjacent > 0 && !fogged
 
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={handleClick}
       onContextMenu={handleContext}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={clearTimer}
-      onPointerCancel={clearTimer}
+      draggable={false}
       style={{
         width: size,
         height: size,
         fontSize: Math.max(11, Math.round(size * 0.45)),
         WebkitTouchCallout: "none",
-        // Stop iOS / Chrome-Mobile from painting their grey "press" overlay.
         WebkitTapHighlightColor: "transparent",
       }}
       className={cn(
