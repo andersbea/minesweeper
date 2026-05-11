@@ -25,6 +25,7 @@ export function SwapDialog({ pending, inventory, onReplace, onSkip }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-md">
       <Card
         role="dialog"
+        aria-modal="true"
         aria-label="Replace an item"
         className="w-full max-w-md overflow-hidden border-2 border-[var(--color-accent)]/40"
       >

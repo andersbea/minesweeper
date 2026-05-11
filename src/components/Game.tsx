@@ -357,8 +357,6 @@ export function Game() {
       setTotalWins,
       setUnlockedModifiers,
       setBestTimes,
-      setItems,
-      pushItemToast,
     ],
   )
 
@@ -641,14 +639,23 @@ export function Game() {
         }
         if (candidates.length === 0) return // nothing left to reveal
         const [pr, pc] = candidates[Math.floor(Math.random() * candidates.length)]
-        const { board: nextBoard } =
+        const { board: nextBoard, revealed } =
           config.modifier.id === "sniper"
             ? revealSingle(board, pr, pc)
             : revealCascade(board, pr, pc)
+        // Credit any bonus tiles uncovered by the pick (same accounting as
+        // handleReveal / handleChord).
+        let bonusGained = 0
+        for (const [rr, cc] of revealed) if (nextBoard[rr][cc].bonus) bonusGained += config.bonusValue
+        if (bonusGained > 0) {
+          if (config.countdown != null) setSeconds((s) => s + bonusGained)
+          else setSeconds((s) => Math.max(0, s - bonusGained))
+          pushFloat(`+${bonusGained}s`)
+        }
         setBoard(nextBoard)
         if (checkWin(nextBoard)) {
           const finalSeconds =
-            config.countdown != null ? seconds : Math.max(0, seconds)
+            config.countdown != null ? seconds + bonusGained : Math.max(0, seconds - bonusGained)
           recordWin(finalSeconds)
         }
       } else if (type === "life") {

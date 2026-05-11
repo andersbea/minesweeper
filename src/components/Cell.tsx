@@ -11,6 +11,12 @@ const ITEM_ICONS: Record<ItemType, LucideIcon> = {
   scan: Radar,
 }
 
+const ITEM_LABELS: Record<ItemType, string> = {
+  life: "Extra Life",
+  pick: "Lucky Pick",
+  scan: "Mine Scan",
+}
+
 const NUMBER_CLASSES: Record<number, string> = {
   1: "text-[oklch(0.85_0.14_220)] [[data-theme=light]_&]:text-[oklch(0.5_0.18_240)]",
   2: "text-[oklch(0.82_0.16_150)] [[data-theme=light]_&]:text-[oklch(0.45_0.18_150)]",
@@ -236,7 +242,7 @@ function CellInner({
             : "bg-[var(--color-surface)]/40 border border-[var(--color-border)]/40"),
         isFlagged && "bg-[var(--color-surface-2)] border border-[var(--color-flag)]/60",
       )}
-      aria-label={`Cell ${row + 1},${col + 1}`}
+      aria-label={`Cell ${row + 1},${col + 1}${isRevealed && cell.item ? ` — collect ${ITEM_LABELS[cell.item]}` : ""}`}
     >
       {!isRevealed && cell.bonus && !isFlagged && (
         <span className="absolute inset-0 rounded-md opacity-30 [background:radial-gradient(circle_at_center,var(--color-flag),transparent_70%)] pointer-events-none" />

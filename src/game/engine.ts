@@ -76,13 +76,20 @@ export function placeMines(
         const pool = neighbors(next, r, c).filter(
           ([nr, nc]) => !next[nr][nc].mine && !safe.has(nr * cols + nc),
         )
-        if (pool.length === 0) continue
-        const [nr, nc] = pool[Math.floor(Math.random() * pool.length)]
-        next[r][c].mine = true
-        next[r][c].twin = true
-        next[nr][nc].mine = true
-        next[nr][nc].twin = true
-        placed += 2
+        if (pool.length === 0) {
+          // No valid pairing neighbor available (e.g. dense board, corner cell
+          // already surrounded). Place this mine solo so we never end up with
+          // fewer mines than the declared count.
+          next[r][c].mine = true
+          placed++
+        } else {
+          const [nr, nc] = pool[Math.floor(Math.random() * pool.length)]
+          next[r][c].mine = true
+          next[r][c].twin = true
+          next[nr][nc].mine = true
+          next[nr][nc].twin = true
+          placed += 2
+        }
       } else {
         next[r][c].mine = true
         placed++
