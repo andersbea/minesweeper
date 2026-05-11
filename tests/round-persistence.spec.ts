@@ -20,8 +20,7 @@ test("mid-round board state survives a refresh", async ({ page }) => {
   // Place a flag on a still-hidden cell so we can confirm flags persist too.
   const flagTarget = await page.evaluate(() => {
     for (const b of Array.from(document.querySelectorAll("button[aria-label^='Cell ']"))) {
-      const cls = (b as HTMLElement).className
-      if (cls.includes("color-surface-2")) return b.getAttribute("aria-label")
+      if ((b as HTMLElement).getAttribute("data-cell-state") === "hidden") return b.getAttribute("aria-label")
     }
     return null
   })
@@ -79,8 +78,7 @@ test("a lost round still shows the loss overlay after refresh", async ({ page })
     for (let c = 1; c <= 12; c++) {
       const cell = page.locator(`button[aria-label='Cell ${r},${c}']`)
       if ((await cell.count()) === 0) continue
-      const cls = (await cell.getAttribute("class")) ?? ""
-      if (!cls.includes("color-surface-2")) continue
+      if ((await cell.getAttribute("data-cell-state")) !== "hidden") continue
       await cell.click()
       // Detect the mine hit via bomb icons (synchronous), not the overlay
       // (which is intentionally delayed ~1.8 s).

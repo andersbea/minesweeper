@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Minimize2 } from "lucide-react"
 import type { Board as BoardT } from "@/game/types"
 import { Cell } from "./Cell"
@@ -227,6 +227,36 @@ export function Board({
 
   const zoomed = Math.abs(scale - 1) > 0.05
 
+  // Arrow-key navigation: delegate from the grid container so we don't need a
+  // handler on every cell. `data-row` / `data-col` attributes on each button
+  // (set by Cell.tsx) provide the position without parsing the aria-label.
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName !== "BUTTON") return
+      const r = Number(target.getAttribute("data-row"))
+      const c = Number(target.getAttribute("data-col"))
+      if (isNaN(r) || isNaN(c)) return
+
+      let nr = r
+      let nc = c
+      switch (e.key) {
+        case "ArrowUp":    nr = r - 1; break
+        case "ArrowDown":  nr = r + 1; break
+        case "ArrowLeft":  nc = c - 1; break
+        case "ArrowRight": nc = c + 1; break
+        default: return
+      }
+      e.preventDefault()
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) return
+      const next = containerRef.current?.querySelector(
+        `button[data-row="${nr}"][data-col="${nc}"]`,
+      ) as HTMLElement | null
+      next?.focus()
+    },
+    [rows, cols],
+  )
+
   return (
     // Outer scroll viewport. One-finger drag scrolls natively (touch-action),
     // two-finger drag scales+pans via the effect above.
@@ -262,32 +292,42 @@ export function Board({
             }}
             onContextMenu={(e) => e.preventDefault()}
           >
+            {/* role="grid" gives screen readers the row/column structure.
+                Rows use `display:contents` so they're transparent to the CSS
+                grid layout while still appearing in the accessibility tree. */}
             <div
+              role="grid"
+              aria-label={`Minesweeper board, ${rows} rows by ${cols} columns`}
+              aria-rowcount={rows}
+              aria-colcount={cols}
               className="grid"
               style={{
                 gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
                 gap: `${gap}px`,
               }}
+              onKeyDown={handleKeyDown}
             >
-              {board.map((row, r) =>
-                row.map((cell, c) => (
-                  <Cell
-                    key={`${r}-${c}`}
-                    cell={cell}
-                    row={r}
-                    col={c}
-                    size={cellSize}
-                    fogged={fogVisible ? !fogVisible[r][c] : false}
-                    exploded={exploded ? exploded[0] === r && exploded[1] === c : false}
-                    scanning={scanning}
-                    flagMode={flagMode}
-                    onReveal={onReveal}
-                    onFlag={onFlag}
-                    onChord={onChord}
-                    onCollect={onCollect}
-                  />
-                )),
-              )}
+              {board.map((row, r) => (
+                <div key={r} role="row" aria-rowindex={r + 1} className="contents">
+                  {row.map((cell, c) => (
+                    <Cell
+                      key={c}
+                      cell={cell}
+                      row={r}
+                      col={c}
+                      size={cellSize}
+                      fogged={fogVisible ? !fogVisible[r][c] : false}
+                      exploded={exploded ? exploded[0] === r && exploded[1] === c : false}
+                      scanning={scanning}
+                      flagMode={flagMode}
+                      onReveal={onReveal}
+                      onFlag={onFlag}
+                      onChord={onChord}
+                      onCollect={onCollect}
+                    />
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
         </div>

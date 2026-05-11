@@ -1,9 +1,10 @@
+import { ErrorBoundary } from "./components/ErrorBoundary"
 import { Game } from "./components/Game"
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt"
 
 export default function App() {
   return (
-    <>
+    <ErrorBoundary>
       {/* Fixed gradient blobs that animate in the background. Colours are
           driven by --gradient-a/b CSS vars set by Game.tsx per modifier. */}
       <div
@@ -15,6 +16,6 @@ export default function App() {
       </div>
       <Game />
       <PWAUpdatePrompt />
-    </>
+    </ErrorBoundary>
   )
 }

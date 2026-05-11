@@ -64,9 +64,8 @@ test("flagging and clicking a satisfied number reveals all other neighbours", as
     function classify(r: number, c: number) {
       const b = document.querySelector(`button[aria-label='Cell ${r},${c}']`) as HTMLElement | null
       if (!b) return null
-      const cls = b.className
       const txt = (b.textContent || "").trim()
-      if (cls.includes("color-surface-2")) return { type: "hidden" }
+      if (b.getAttribute("data-cell-state") === "hidden") return { type: "hidden" }
       if (txt) return { type: "number", n: Number(txt) }
       return { type: "empty" }
     }
@@ -195,6 +194,7 @@ test("mine counter goes negative and turns red when over-flagging", async ({ pag
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 1, rows: 3, cols: 3, mines: 1, bonusTiles: 0,
         modifierId: "calm", paletteSeed: 0, board,
         status: "playing", seconds: 0, exploded: null,
@@ -230,8 +230,7 @@ test("hitting a mine shows the loss overlay and reveals all mines", async ({ pag
     for (let c = 1; c <= 12; c++) {
       const cell = page.locator(`button[aria-label='Cell ${r},${c}']`)
       if ((await cell.count()) === 0) continue
-      const cls = (await cell.getAttribute("class")) ?? ""
-      if (!cls.includes("color-surface-2")) continue
+      if ((await cell.getAttribute("data-cell-state")) !== "hidden") continue
       await cell.click()
       // The loss overlay is intentionally delayed ~1.8 s so the player can see
       // the revealed mines first. Detect the mine hit synchronously via bomb

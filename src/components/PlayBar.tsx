@@ -1,6 +1,7 @@
 import { Bomb, Flag, Menu, MousePointer2 } from "lucide-react"
 import type { LevelConfig } from "@/game/types"
 import type { Palette } from "@/game/palette"
+import { formatMMSS } from "@/lib/format"
 import { Button } from "./ui/button"
 import { cn } from "@/lib/utils"
 
@@ -12,12 +13,6 @@ interface Props {
   flagMode: boolean
   onToggleFlagMode: () => void
   onOpenMenu: () => void
-}
-
-function fmt(seconds: number) {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
 
 export function PlayBar({
@@ -72,7 +67,7 @@ export function PlayBar({
           />
           {minesLeft}
         </div>
-        <div className="font-mono tabular-nums text-sm text-[var(--color-fg)]">{fmt(seconds)}</div>
+        <div className="font-mono tabular-nums text-sm text-[var(--color-fg)]">{formatMMSS(seconds)}</div>
 
         <button
           type="button"

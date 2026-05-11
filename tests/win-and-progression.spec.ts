@@ -22,6 +22,7 @@ function seedOneClickWin(level: number) {
       window.localStorage.setItem(
         "ms.activeRound",
         JSON.stringify({
+          schemaVersion: 1,
           level: lvl,
           rows: 3,
           cols: 3,
@@ -87,6 +88,7 @@ test("countdown expiry shows 'Time's up' overlay", async ({ page }) => {
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 1,
         rows: 3,
         cols: 3,
@@ -135,6 +137,7 @@ test("Extra Life defuses a mine on direct reveal — no explosion", async ({ pag
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 2,
         rows: 3,
         cols: 3,
@@ -195,6 +198,7 @@ test("Retry level restores inventory from the round-start snapshot", async ({ pa
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 2,
         rows: 3,
         cols: 3,
@@ -257,6 +261,7 @@ test("SwapDialog replace slot swaps the item, closes the dialog, and shows a toa
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 1,
         rows: 3,
         cols: 3,

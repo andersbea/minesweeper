@@ -55,14 +55,14 @@ export async function readBoard(page: Page) {
       while (true) {
         const b = document.querySelector(`button[aria-label='Cell ${r},${c}']`)
         if (!b) break
-        const cls = (b as HTMLElement).className
+        const cellState = (b as HTMLElement).getAttribute("data-cell-state") ?? ""
         const txt = (b.textContent || "").trim()
         const hasFlag = !!b.querySelector("svg.lucide-flag")
         const hasMine = !!b.querySelector("svg.lucide-bomb")
         let state: string
-        if (hasFlag) state = "flag"
+        if (hasFlag || cellState === "flagged") state = "flag"
         else if (hasMine) state = "mine"
-        else if (cls.includes("color-surface-2")) state = "hidden"
+        else if (cellState === "hidden") state = "hidden"
         else if (txt) state = "number"
         else state = "empty"
         row.push({ r, c, state, n: txt ? Number(txt) : undefined })

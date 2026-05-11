@@ -34,14 +34,14 @@ test("Lucky Pick reveals a hidden cell and is consumed", async ({ page }) => {
   await page.waitForTimeout(200)
   const hiddenBefore = await page.evaluate(() =>
     Array.from(document.querySelectorAll("button[aria-label^='Cell ']")).filter((b) =>
-      b.className.includes("color-surface-2"),
+      (b as HTMLElement).getAttribute("data-cell-state") === "hidden",
     ).length,
   )
   // Click the only item slot.
   await page.getByRole("listitem").first().click()
   const hiddenAfter = await page.evaluate(() =>
     Array.from(document.querySelectorAll("button[aria-label^='Cell ']")).filter((b) =>
-      b.className.includes("color-surface-2"),
+      (b as HTMLElement).getAttribute("data-cell-state") === "hidden",
     ).length,
   )
   expect(hiddenAfter).toBeLessThan(hiddenBefore)
@@ -130,6 +130,7 @@ test("collecting an item from a board cell adds it to inventory", async ({ page 
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 1,
         rows,
         cols,
@@ -175,6 +176,7 @@ test("collected item is locked — slot is disabled until next round starts", as
       })),
     )
     window.localStorage.setItem("ms.activeRound", JSON.stringify({
+      schemaVersion: 1,
       level: 1, rows, cols, mines: 1, bonusTiles: 0,
       modifierId: "calm", paletteSeed: 0, board,
       status: "playing", seconds: 5, exploded: null, countdown: null, bonusValue: 5,
@@ -252,6 +254,7 @@ test("SwapDialog appears when collecting on a full inventory", async ({ page }) 
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 1,
         rows,
         cols,

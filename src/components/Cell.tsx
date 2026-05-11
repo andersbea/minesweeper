@@ -47,6 +47,10 @@ const LONG_PRESS_MS = 280
 // Finger contact points jitter during a long hold — sometimes 30+ px between
 // samples. Generous threshold so a steady press isn't canceled by drift.
 const MOVE_TOLERANCE_PX = 48
+// Android Chrome sometimes fires a synthetic click after a long-press even
+// when we called preventDefault on touchend. Drop any click that arrives
+// within this window of the last touchend on this cell.
+const SYNTHETIC_CLICK_SUPPRESS_MS = 600
 
 function CellInner({
   cell,
@@ -188,7 +192,7 @@ function CellInner({
   // occasionally fires the synthetic click anyway. Drop any click that
   // arrives within 600ms of a touchend on this cell.
   const handleClick = (e: React.MouseEvent) => {
-    if (Date.now() - lastTouchEndAt.current < 600) return
+    if (Date.now() - lastTouchEndAt.current < SYNTHETIC_CLICK_SUPPRESS_MS) return
     if (e.shiftKey || e.altKey) {
       onFlag(row, col)
       return
@@ -243,6 +247,9 @@ function CellInner({
         isFlagged && "bg-[var(--color-surface-2)] border border-[var(--color-flag)]/60",
       )}
       aria-label={`Cell ${row + 1},${col + 1}${isRevealed && cell.item ? ` — collect ${ITEM_LABELS[cell.item]}` : ""}`}
+      data-cell-state={isFlagged ? "flagged" : isRevealed ? "revealed" : "hidden"}
+      data-row={row}
+      data-col={col}
     >
       {!isRevealed && cell.bonus && !isFlagged && (
         <span className="absolute inset-0 rounded-md opacity-30 [background:radial-gradient(circle_at_center,var(--color-flag),transparent_70%)] pointer-events-none" />

@@ -86,6 +86,7 @@ test("Fog mode hides interior cascade numbers", async ({ page }) => {
     window.localStorage.setItem(
       "ms.activeRound",
       JSON.stringify({
+        schemaVersion: 1,
         level: 1,
         rows: 9,
         cols: 9,
