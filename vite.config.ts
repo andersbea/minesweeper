@@ -10,8 +10,8 @@ import { VitePWA } from "vite-plugin-pwa"
 // path-root deploy, the default `/` works.
 const base = process.env.BASE_PATH ?? "/"
 
-// Short git hash baked into the bundle so the menu can show which build is
-// running. Falls back to "dev" when there's no git context.
+// Build metadata baked into the bundle at compile time.
+// Falls back gracefully when git isn't available (e.g. a zip download).
 function gitHash() {
   try {
     return execSync("git rev-parse --short HEAD").toString().trim()
@@ -20,10 +20,20 @@ function gitHash() {
   }
 }
 
+function buildTimestamp() {
+  const now = new Date()
+  const day = now.getDate()
+  const month = now.toLocaleString("en", { month: "short" })
+  const hh = String(now.getHours()).padStart(2, "0")
+  const mm = String(now.getMinutes()).padStart(2, "0")
+  return `${day} ${month} ${hh}:${mm}`
+}
+
 export default defineConfig({
   base,
   define: {
     __APP_HASH__: JSON.stringify(gitHash()),
+    __APP_BUILT__: JSON.stringify(buildTimestamp()),
   },
   plugins: [
     react(),

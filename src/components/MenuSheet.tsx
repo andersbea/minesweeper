@@ -294,7 +294,7 @@ function MainView({
       </div>
 
       <p className="text-center font-mono text-[10px] text-[var(--color-muted)]">
-        build {__APP_HASH__}
+        {__APP_BUILT__} · {__APP_HASH__}
       </p>
     </>
   )
