@@ -17,6 +17,7 @@ import { ITEM_MAX, ITEMS, rollItem, type ItemType } from "@/game/items"
 import type { Board as BoardT, GameStatus, LevelConfig, ModifierId } from "@/game/types"
 import { paletteFor } from "@/game/palette"
 import { ItemsBar } from "./ItemsBar"
+import { SwapDialog } from "./SwapDialog"
 import { Board } from "./Board"
 import { PlayBar } from "./PlayBar"
 import { MenuSheet } from "./MenuSheet"
@@ -157,6 +158,9 @@ export function Game() {
   // Item inventory (max 3). Earned on level clear; Lucky Pick / Mine Scan
   // are manually consumed; Extra Life auto-fires when a mine is clicked.
   const [items, setItems] = useLocalStorage<ItemType[]>("ms.items", [])
+  // When the player wins a round but their inventory is already full, the
+  // drop is queued here until they decide which slot to swap (or skip).
+  const [pendingItem, setPendingItem] = useState<ItemType | null>(null)
   // When set, every mine cell pulses red for ~2s (Mine Scan effect).
   const [scanning, setScanning] = useState(false)
   // Toast text for an item award / consumption.
@@ -267,13 +271,16 @@ export function Game() {
         }
         return prev
       })
-      // Item drop: only if inventory has room. Forces the player to use items
-      // rather than hoard them indefinitely.
+      // Item drop. If there's room, slot it directly; otherwise queue a
+      // swap dialog so the player can choose what to replace.
+      const dropped = rollItem(config.level)
       setItems((prev) => {
-        if (prev.length >= ITEM_MAX) return prev
-        const dropped = rollItem(config.level)
-        pushItemToast(`+ ${ITEMS[dropped].name}`)
-        return [...prev, dropped]
+        if (prev.length < ITEM_MAX) {
+          pushItemToast(`+ ${ITEMS[dropped].name}`)
+          return [...prev, dropped]
+        }
+        setPendingItem(dropped)
+        return prev
       })
     },
     [
@@ -532,6 +539,8 @@ export function Game() {
   const newRun = () => {
     setMenuOpen(false)
     setStreak(0)
+    setItems([])
+    setPendingItem(null)
     startLevel(1, { force: "calm" })
   }
 
@@ -619,6 +628,22 @@ export function Game() {
         onNext={nextLevel}
         onRetry={restartCurrent}
         onNewRun={newRun}
+      />
+
+      <SwapDialog
+        pending={pendingItem}
+        inventory={items}
+        onReplace={(slot) => {
+          if (pendingItem == null) return
+          setItems((prev) => {
+            const next = [...prev]
+            next[slot] = pendingItem
+            return next
+          })
+          pushItemToast(`+ ${ITEMS[pendingItem].name}`)
+          setPendingItem(null)
+        }}
+        onSkip={() => setPendingItem(null)}
       />
     </div>
   )

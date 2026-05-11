@@ -88,3 +88,74 @@ test("Inventory caps at three (won't go above ITEM_MAX)", async ({ page }) => {
   // Quick sanity: only three slots rendered.
   await expect(page.getByRole("listitem")).toHaveCount(3)
 })
+
+test("New Run wipes the item inventory", async ({ page }) => {
+  await setPersisted(page, { "ms.items": ["life", "pick", "scan"] })
+  await page.goto("/")
+  await dismissIntro(page)
+  // Sanity: bar visible before reset.
+  await expect(page.getByRole("list", { name: "Items" })).toBeVisible()
+  // Trigger New Run via the menu.
+  await page.getByLabel("Open menu").click()
+  await page.getByRole("button", { name: "New run" }).click()
+  await dismissIntro(page)
+  // Inventory cleared → bar gone.
+  await expect(page.getByRole("list", { name: "Items" })).toHaveCount(0)
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("ms.items") ?? "[]"))
+  expect(stored).toEqual([])
+})
+
+test("SwapDialog appears when a new item drops onto a full inventory", async ({ page }) => {
+  // Seed full inventory + a saved round that's one click away from winning.
+  // We can't deterministically force a win via UI, so we mount a near-win
+  // active round via storage: a 9x9 board with all non-mine cells already
+  // revealed except one, plus a known mine layout.
+  await setPersisted(page, { "ms.items": ["pick", "pick", "pick"] })
+  await page.addInitScript(() => {
+    // Build a 3x3 board, 1 mine at (0,0). All non-mine cells revealed except (2,2).
+    const rows = 3
+    const cols = 3
+    const board = Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => ({
+        mine: r === 0 && c === 0,
+        adjacent: r === 0 && c === 0 ? 0 : r <= 1 && c <= 1 ? 1 : 0,
+        // Reveal every non-mine cell except (2,2) — that's our winning click.
+        state: r === 0 && c === 0 ? "hidden" : !(r === 2 && c === 2) ? "revealed" : "hidden",
+        bonus: false,
+        twin: false,
+      })),
+    )
+    window.localStorage.setItem(
+      "ms.activeRound",
+      JSON.stringify({
+        level: 1,
+        rows,
+        cols,
+        mines: 1,
+        bonusTiles: 0,
+        modifierId: "calm",
+        paletteSeed: 0,
+        board,
+        status: "playing",
+        seconds: 5,
+        exploded: null,
+        countdown: null,
+        bonusValue: 5,
+      }),
+    )
+  })
+  await page.goto("/")
+  // No intro: round is already in progress (status: "playing").
+  // Click the winning cell.
+  await page.getByLabel("Cell 3,3").click()
+  // The win triggers a drop into a full inventory → SwapDialog appears.
+  await expect(page.getByRole("dialog", { name: "Replace an item" })).toBeVisible()
+  // Dialog shows three replaceable slot buttons.
+  const slotButtons = page
+    .getByRole("dialog", { name: "Replace an item" })
+    .getByRole("button", { name: /^Replace / })
+  await expect(slotButtons).toHaveCount(3)
+  // Skip option discards the new item, dismisses the dialog.
+  await page.getByRole("button", { name: /^Skip/ }).click()
+  await expect(page.getByRole("dialog", { name: "Replace an item" })).toHaveCount(0)
+})
