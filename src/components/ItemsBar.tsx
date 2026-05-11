@@ -20,6 +20,7 @@ interface Props {
 
 export function ItemsBar({ items, itemLocks, canUse, onUse }: Props) {
   const slots = Array.from({ length: ITEM_MAX }, (_, i) => items[i] ?? null)
+  const hasItems = items.length > 0
   const [tooltip, setTooltip] = useState<number | null>(null)
   const pressTimers = useRef<(ReturnType<typeof setTimeout> | null)[]>(
     Array(ITEM_MAX).fill(null),
@@ -41,7 +42,18 @@ export function ItemsBar({ items, itemLocks, canUse, onUse }: Props) {
   }
 
   return (
-    <div role="list" aria-label="Items" className="flex justify-center gap-2">
+    <div
+      role={hasItems ? "list" : undefined}
+      aria-label={hasItems ? "Items" : undefined}
+      aria-hidden={!hasItems}
+      className={cn(
+        "flex justify-center gap-2",
+        // Keep the row in the layout at all times so gaining the first item
+        // never shifts the board. Use visibility rather than display so the
+        // height is preserved.
+        !hasItems && "invisible pointer-events-none",
+      )}
+    >
       {slots.map((slot, i) => {
         const def = slot ? ITEMS[slot] : null
         const Icon = slot ? ICONS[slot] : null

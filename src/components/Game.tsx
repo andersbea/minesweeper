@@ -637,14 +637,14 @@ export function Game() {
         onOpenMenu={() => setMenuOpen(true)}
       />
 
-      {items.length > 0 && (
-        <ItemsBar
-          items={items}
-          itemLocks={itemLocks}
-          canUse={status === "playing"}
-          onUse={handleUseItem}
-        />
-      )}
+      {/* Always rendered so the row reserves its space in the layout.
+          ItemsBar itself goes invisible (not display:none) when empty. */}
+      <ItemsBar
+        items={items}
+        itemLocks={itemLocks}
+        canUse={status === "playing"}
+        onUse={handleUseItem}
+      />
 
       <div className="relative min-h-0 flex-1">
         <Board
