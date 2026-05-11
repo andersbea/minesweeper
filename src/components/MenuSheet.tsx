@@ -4,11 +4,15 @@ import {
   ChevronRight,
   Cloud,
   Crosshair,
+  Dice5,
+  Heart,
   Link2,
   Lock,
   Maximize,
   Moon,
   MousePointerClick,
+  Package,
+  Radar,
   RotateCcw,
   Sparkles,
   Sun,
@@ -23,11 +27,18 @@ import type { LevelConfig, ModifierId } from "@/game/types"
 import type { Palette } from "@/game/palette"
 import type { Theme } from "@/hooks/useTheme"
 import { MODIFIERS } from "@/game/modifiers"
+import { ITEMS, type ItemType } from "@/game/items"
 import { Button } from "./ui/button"
 import { Badge } from "./ui/badge"
 import { ModifierBanner } from "./ModifierBanner"
 import { HUD } from "./HUD"
 import { cn } from "@/lib/utils"
+
+const ITEM_ICONS: Record<ItemType, LucideIcon> = {
+  life: Heart,
+  pick: Dice5,
+  scan: Radar,
+}
 
 const MODIFIER_ICONS: Record<string, LucideIcon> = {
   Cloud,
@@ -53,6 +64,7 @@ interface Props {
   theme: Theme
   unlockedModifiers: ModifierId[]
   bestTimes: Partial<Record<ModifierId, number>>
+  discoveredItems: ItemType[]
   onToggleTheme: () => void
   onRestart: () => void
   onNewRun: () => void
@@ -71,6 +83,7 @@ export function MenuSheet({
   theme,
   unlockedModifiers,
   bestTimes,
+  discoveredItems,
   onToggleTheme,
   onRestart,
   onNewRun,
@@ -83,7 +96,7 @@ export function MenuSheet({
   const [closing, setClosing] = useState(false)
   // Subpage navigation inside the sheet. Reset to "main" each time the sheet
   // re-opens so the user always lands on the top-level menu first.
-  const [view, setView] = useState<"main" | "modifiers">("main")
+  const [view, setView] = useState<"main" | "modifiers" | "items">("main")
 
   useEffect(() => {
     if (open) {
@@ -140,17 +153,26 @@ export function MenuSheet({
             minesLeft={minesLeft}
             seconds={seconds}
             unlockedModifiers={unlockedModifiers}
+            discoveredItems={discoveredItems}
             onClose={onClose}
             onToggleTheme={onToggleTheme}
             onRestart={onRestart}
             onNewRun={onNewRun}
             onOpenModifiers={() => setView("modifiers")}
+            onOpenItems={() => setView("items")}
           />
-        ) : (
+        ) : view === "modifiers" ? (
           <ModifiersView
             palette={palette}
             unlockedModifiers={unlockedModifiers}
             bestTimes={bestTimes}
+            onBack={() => setView("main")}
+            onClose={onClose}
+          />
+        ) : (
+          <ItemsDiscoveryView
+            palette={palette}
+            discoveredItems={discoveredItems}
             onBack={() => setView("main")}
             onClose={onClose}
           />
@@ -170,11 +192,13 @@ function MainView({
   minesLeft,
   seconds,
   unlockedModifiers,
+  discoveredItems,
   onClose,
   onToggleTheme,
   onRestart,
   onNewRun,
   onOpenModifiers,
+  onOpenItems,
 }: {
   config: LevelConfig
   palette: Palette
@@ -185,13 +209,16 @@ function MainView({
   minesLeft: number
   seconds: number
   unlockedModifiers: ModifierId[]
+  discoveredItems: ItemType[]
   onClose: () => void
   onToggleTheme: () => void
   onRestart: () => void
   onNewRun: () => void
   onOpenModifiers: () => void
+  onOpenItems: () => void
 }) {
   const totalModifiers = Object.keys(MODIFIERS).length
+  const totalItemTypes = Object.keys(ITEMS).length
   return (
     <>
       <div className="flex items-center justify-between">
@@ -260,6 +287,27 @@ function MainView({
         <ChevronRight className="h-4 w-4 text-[var(--color-muted)]" />
       </button>
 
+      <button
+        type="button"
+        onClick={onOpenItems}
+        aria-label="Open items list"
+        className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/60 p-3 text-left transition-colors hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)]/70"
+      >
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-black"
+          style={{ background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }}
+        >
+          <Package className="h-4 w-4" strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-[var(--color-fg)]">Items</div>
+          <div className="text-xs text-[var(--color-muted)]">
+            {discoveredItems.length} of {totalItemTypes} discovered
+          </div>
+        </div>
+        <ChevronRight className="h-4 w-4 text-[var(--color-muted)]" />
+      </button>
+
       <div className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
         <MousePointerClick className="h-3.5 w-3.5" />
         <span>Tap to reveal · long-press or right-click to flag · tap a number to chord.</span>
@@ -322,6 +370,98 @@ function ModifiersView({
         palette={palette}
         bestTimes={bestTimes}
       />
+    </>
+  )
+}
+
+function ItemsDiscoveryView({
+  palette,
+  discoveredItems,
+  onBack,
+  onClose,
+}: {
+  palette: Palette
+  discoveredItems: ItemType[]
+  onBack: () => void
+  onClose: () => void
+}) {
+  const ids = Object.keys(ITEMS) as ItemType[]
+  const discoveredSet = new Set(discoveredItems)
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="icon" onClick={onBack} aria-label="Back to menu">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-muted)]">
+            Collection
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-fg)]">Items</h2>
+        </div>
+        <Badge variant="outline">
+          <Package className="h-3 w-3" />
+          {discoveredItems.length}/{ids.length}
+        </Badge>
+        <Button variant="outline" size="icon" onClick={onClose} aria-label="Close menu">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-xs text-[var(--color-muted)]">
+        Items are hidden on the board each round. Reveal a cell to uncover one, then tap it to
+        collect. Newly collected items unlock at the start of the next round.
+      </p>
+      <div className="grid grid-cols-1 gap-2">
+        {ids.map((id) => {
+          const def = ITEMS[id]
+          const isKnown = discoveredSet.has(id)
+          const Icon = ITEM_ICONS[id]
+          return (
+            <div
+              key={id}
+              role="group"
+              aria-label={isKnown ? def.name : "Undiscovered item"}
+              className={cn(
+                "flex items-center gap-3 rounded-xl border p-3 transition-colors",
+                isKnown
+                  ? "border-[var(--color-border)] bg-[var(--color-surface)]/70"
+                  : "border-dashed border-[var(--color-border)]/60 bg-[var(--color-surface-2)]/40",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                  isKnown ? "text-black" : "bg-[var(--color-surface-2)] text-[var(--color-muted)]",
+                )}
+                style={
+                  isKnown
+                    ? { background: `linear-gradient(135deg, ${palette.a}, ${palette.b})` }
+                    : undefined
+                }
+              >
+                {isKnown ? (
+                  <Icon className="h-5 w-5" strokeWidth={2.5} />
+                ) : (
+                  <Lock className="h-4 w-4" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div
+                  className={cn(
+                    "text-sm font-semibold",
+                    isKnown ? "text-[var(--color-fg)]" : "text-[var(--color-muted)]",
+                  )}
+                >
+                  {isKnown ? def.name : "???"}
+                </div>
+                <div className="mt-0.5 text-xs text-[var(--color-muted)]">
+                  {isKnown ? def.description : "Find and collect this item to reveal it here."}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </>
   )
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Bomb, Flag, RotateCcw, ChevronRight, Sparkles } from "lucide-react"
+import { Bomb, Dice5, Flag, Heart, Lock, Radar, RotateCcw, ChevronRight, Sparkles } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import {
   checkWin,
   configForLevel,
@@ -15,6 +16,13 @@ import {
 } from "@/game/engine"
 import { MODIFIERS } from "@/game/modifiers"
 import { ITEM_MAX, ITEMS, type ItemType } from "@/game/items"
+
+// Icon map shared by ReadyOverlay and any inline item renderers inside Game.
+const ITEM_ICONS: Record<ItemType, LucideIcon> = {
+  life: Heart,
+  pick: Dice5,
+  scan: Radar,
+}
 import type { Board as BoardT, GameStatus, LevelConfig, ModifierId } from "@/game/types"
 import { paletteFor } from "@/game/palette"
 import { ItemsBar } from "./ItemsBar"
@@ -160,6 +168,11 @@ export function Game() {
   // Item inventory (max 3). Earned on level clear; Lucky Pick / Mine Scan
   // are manually consumed; Extra Life auto-fires when a mine is clicked.
   const [items, setItems] = useLocalStorage<ItemType[]>("ms.items", [])
+  // Parallel lock flags: true = item was collected this round and can't be
+  // used until the player clicks Start on the next round's ReadyOverlay.
+  const [itemLocks, setItemLocks] = useLocalStorage<boolean[]>("ms.itemLocks", [])
+  // Which item types the player has ever found — drives the discovery view.
+  const [discoveredItems, setDiscoveredItems] = useLocalStorage<ItemType[]>("ms.discoveredItems", [])
   // When the player wins a round but their inventory is already full, the
   // drop is queued here until they decide which slot to swap (or skip).
   const [pendingItem, setPendingItem] = useState<ItemType | null>(null)
@@ -218,7 +231,9 @@ export function Game() {
     }
   }, [config, board, status, seconds, exploded, lossReason])
 
-  const minesLeft = Math.max(0, config.mines - countFlags(board))
+  // Allow the value to go negative when the player over-flags so they get
+  // immediate feedback that something's off (counter turns red in the UI).
+  const minesLeft = config.mines - countFlags(board)
 
   const stopTimer = useCallback(() => {
     if (timerRef.current != null) {
@@ -343,10 +358,13 @@ export function Game() {
       if (cell.state === "flagged") return
 
       if (cell.mine) {
-        // If the player has an Extra Life, consume it instead of losing.
-        // The mine is defused (no longer a mine) and the cell is flagged to
-        // make the rescue visible. The round continues.
-        if (items.includes("life")) {
+        // If the player has an active (unlocked) Extra Life, consume it
+        // instead of losing. The mine is defused and the cell is flagged
+        // to make the rescue visible. The round continues.
+        const activeLifeIdx = items.findIndex(
+          (item, idx) => item === "life" && !(itemLocks[idx] ?? false),
+        )
+        if (activeLifeIdx !== -1) {
           const defused = working.map((row) => row.map((c) => ({ ...c })))
           defused[r][c] = { ...defused[r][c], mine: false, state: "flagged" }
           // Recompute adjacency for the cell's neighbours since a mine vanished.
@@ -361,10 +379,13 @@ export function Game() {
           }
           setBoard(defused)
           setItems((prev) => {
-            const idx = prev.indexOf("life")
-            if (idx === -1) return prev
             const next = [...prev]
-            next.splice(idx, 1)
+            next.splice(activeLifeIdx, 1)
+            return next
+          })
+          setItemLocks((prev) => {
+            const next = [...prev]
+            next.splice(activeLifeIdx, 1)
             return next
           })
           pushItemToast("Extra Life used")
@@ -412,7 +433,7 @@ export function Game() {
         recordWin(finalSeconds)
       }
     },
-    [board, config, status, seconds, items, startTimer, stopTimer, setItems, pushItemToast, recordWin],
+    [board, config, status, seconds, items, itemLocks, startTimer, stopTimer, setItems, setItemLocks, pushItemToast, recordWin],
   )
 
   const handleFlag = useCallback(
@@ -508,17 +529,22 @@ export function Game() {
       const next = board.map((row) => row.map((c) => ({ ...c })))
       next[r][c].item = null
       setBoard(next)
-      setItems((prev) => {
-        if (prev.length < ITEM_MAX) {
-          pushItemToast(`+ ${ITEMS[dropped].name}`)
-          return [...prev, dropped]
-        }
+      // Check inventory capacity from the closure value — avoids calling a
+      // second setXxx inside the setItems updater (which React StrictMode
+      // would double-invoke, producing two lock entries).
+      if (items.length < ITEM_MAX) {
+        pushItemToast(`+ ${ITEMS[dropped].name}`)
+        setItems((prev) => [...prev, dropped])
+        // Mark as locked — usable only once the next round's Start is clicked.
+        setItemLocks((prev) => [...prev, true])
+      } else {
         setPendingItem(dropped)
-        return prev
-      })
+      }
+      // Track first-ever discovery so the Items view can reveal the entry.
+      setDiscoveredItems((prev) => (prev.includes(dropped) ? prev : [...prev, dropped]))
       if ("vibrate" in navigator) navigator.vibrate(8)
     },
-    [board, status, setItems, pushItemToast],
+    [board, status, setItems, setItemLocks, setDiscoveredItems, pushItemToast],
   )
 
   // Manually consume an item from the inventory by slot index.
@@ -563,8 +589,13 @@ export function Game() {
         next.splice(slot, 1)
         return next
       })
+      setItemLocks((prev) => {
+        const next = [...prev]
+        next.splice(slot, 1)
+        return next
+      })
     },
-    [items, status, board, config, seconds, recordWin, setItems],
+    [items, itemLocks, status, board, config, seconds, recordWin, setItems, setItemLocks],
   )
 
   const restartCurrent = () => {
@@ -576,6 +607,7 @@ export function Game() {
     setMenuOpen(false)
     setStreak(0)
     setItems([])
+    setItemLocks([])
     setPendingItem(null)
     startLevel(1, { force: "calm" })
   }
@@ -593,7 +625,12 @@ export function Game() {
       />
 
       {items.length > 0 && (
-        <ItemsBar items={items} canUse={status === "playing"} onUse={handleUseItem} />
+        <ItemsBar
+          items={items}
+          itemLocks={itemLocks}
+          canUse={status === "playing"}
+          onUse={handleUseItem}
+        />
       )}
 
       <div className="relative min-h-0 flex-1">
@@ -644,6 +681,7 @@ export function Game() {
         theme={theme}
         unlockedModifiers={unlockedModifiers}
         bestTimes={bestTimes}
+        discoveredItems={discoveredItems}
         onToggleTheme={toggleTheme}
         onRestart={restartCurrent}
         onNewRun={newRun}
@@ -653,7 +691,13 @@ export function Game() {
         visible={status === "ready" && !introDismissed}
         config={config}
         palette={palette}
-        onStart={() => setIntroDismissed(true)}
+        items={items}
+        itemLocks={itemLocks}
+        onStart={() => {
+          // Unlock all items so they can be used this round.
+          setItemLocks((prev) => prev.map(() => false))
+          setIntroDismissed(true)
+        }}
       />
 
       <Overlay
@@ -677,6 +721,15 @@ export function Game() {
             next[slot] = pendingItem
             return next
           })
+          // The swapped-in item is locked until the next round starts.
+          setItemLocks((prev) => {
+            const next = [...prev]
+            next[slot] = true
+            return next
+          })
+          setDiscoveredItems((prev) =>
+            prev.includes(pendingItem) ? prev : [...prev, pendingItem],
+          )
           pushItemToast(`+ ${ITEMS[pendingItem].name}`)
           setPendingItem(null)
         }}
@@ -780,11 +833,15 @@ function ReadyOverlay({
   visible,
   config,
   palette,
+  items,
+  itemLocks,
   onStart,
 }: {
   visible: boolean
   config: LevelConfig
   palette: { a: string; b: string; name: string }
+  items: ItemType[]
+  itemLocks: boolean[]
   onStart: () => void
 }) {
   if (!visible) return null
@@ -792,6 +849,7 @@ function ReadyOverlay({
   const timeLabel = isCountdown
     ? `Countdown · ${formatMMSS(config.countdown!)}`
     : "Timer counts up"
+  const hasLockedItems = items.some((_, i) => itemLocks[i] ?? false)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-md">
       <Card className="w-full max-w-md overflow-hidden border-2 border-[var(--color-accent)]/30">
@@ -825,6 +883,67 @@ function ReadyOverlay({
               <div className="font-mono text-sm text-[var(--color-fg)]">{timeLabel}</div>
             </div>
           </div>
+
+          {/* Items summary — only shown when the player has at least one item */}
+          {items.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">
+                Your items{hasLockedItems ? " · new items unlock on start" : ""}
+              </div>
+              <div className="flex gap-2">
+                {Array.from({ length: ITEM_MAX }, (_, i) => {
+                  const type = items[i] ?? null
+                  const def = type ? ITEMS[type] : null
+                  const Icon = type ? ITEM_ICONS[type] : null
+                  const locked = type ? (itemLocks[i] ?? false) : false
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        "relative flex flex-1 items-center gap-1.5 rounded-lg border px-2 py-1.5",
+                        type
+                          ? locked
+                            ? "border-[var(--color-border)] bg-[var(--color-surface-2)]/40"
+                            : "border-[var(--color-accent)]/30 bg-[color-mix(in_oklch,var(--color-accent)_8%,transparent)]"
+                          : "border-dashed border-[var(--color-border)]/40 bg-transparent",
+                      )}
+                    >
+                      {type && Icon && def ? (
+                        <>
+                          <Icon
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0",
+                              locked ? "text-[var(--color-muted)]" : "text-[var(--color-accent)]",
+                            )}
+                            strokeWidth={2.5}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className={cn(
+                                "truncate text-[10px] font-semibold leading-tight",
+                                locked ? "text-[var(--color-muted)]" : "text-[var(--color-fg)]",
+                              )}
+                            >
+                              {def.name}
+                            </div>
+                            {locked && (
+                              <div className="flex items-center gap-0.5 text-[9px] text-[var(--color-muted)]">
+                                <Lock className="h-2 w-2" />
+                                New
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-[var(--color-muted)]">—</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <Button className="w-full" onClick={onStart}>
             Start
           </Button>

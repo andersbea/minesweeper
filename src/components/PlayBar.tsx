@@ -53,8 +53,23 @@ export function PlayBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        <div className="flex items-center gap-1.5 font-mono tabular-nums text-sm text-[var(--color-fg)]">
-          <Bomb className="h-3.5 w-3.5 text-[var(--color-fg-soft)]" />
+        <div
+          className={cn(
+            "flex items-center gap-1.5 font-mono tabular-nums text-sm",
+            minesLeft < 0
+              ? "text-[var(--color-danger)]"
+              : "text-[var(--color-fg)]",
+          )}
+          aria-label={minesLeft < 0 ? "Too many flags placed" : `${minesLeft} mines remaining`}
+        >
+          <Bomb
+            className={cn(
+              "h-3.5 w-3.5",
+              minesLeft < 0
+                ? "text-[var(--color-danger)]"
+                : "text-[var(--color-fg-soft)]",
+            )}
+          />
           {minesLeft}
         </div>
         <div className="font-mono tabular-nums text-sm text-[var(--color-fg)]">{fmt(seconds)}</div>

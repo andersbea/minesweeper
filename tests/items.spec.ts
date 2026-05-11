@@ -160,6 +160,76 @@ test("collecting an item from a board cell adds it to inventory", async ({ page 
   await expect(page.getByRole("list", { name: "Items" })).toBeVisible()
 })
 
+test("collected item is locked — slot is disabled until next round starts", async ({ page }) => {
+  // Seed the same playing board used in the collection test.
+  await page.addInitScript(() => {
+    const rows = 3, cols = 3
+    const board = Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => ({
+        mine: r === 0 && c === 0,
+        adjacent: r === 0 && c === 0 ? 0 : r <= 1 && c <= 1 ? 1 : 0,
+        state: (r === 0 && c === 0) || (r === 1 && c === 1) || (r === 2 && c === 1) ? "hidden" : "revealed",
+        bonus: false,
+        twin: false,
+        item: r === 1 && c === 1 ? "pick" : null,
+      })),
+    )
+    window.localStorage.setItem("ms.activeRound", JSON.stringify({
+      level: 1, rows, cols, mines: 1, bonusTiles: 0,
+      modifierId: "calm", paletteSeed: 0, board,
+      status: "playing", seconds: 5, exploded: null, countdown: null, bonusValue: 5,
+    }))
+  })
+  await page.goto("/")
+  // Reveal then collect the item.
+  await page.getByLabel("Cell 2,2").click()
+  await page.getByLabel("Cell 2,2").click()
+  // The slot should appear but be disabled (locked).
+  const slot = page.getByRole("listitem").first()
+  await expect(slot).toBeDisabled()
+  // localStorage should record the lock.
+  const locks = await page.evaluate(() => JSON.parse(localStorage.getItem("ms.itemLocks") ?? "[]"))
+  expect(locks).toEqual([true])
+})
+
+test("locked item unlocks when Start is clicked on the next round", async ({ page }) => {
+  // Seed inventory with one locked pick and a fresh ready-state board.
+  await page.addInitScript(() => {
+    window.localStorage.setItem("ms.items", JSON.stringify(["pick"]))
+    window.localStorage.setItem("ms.itemLocks", JSON.stringify([true]))
+  })
+  await page.goto("/")
+  // ReadyOverlay should be visible — the pick should show "New" locked indicator.
+  const startBtn = page.getByRole("button", { name: "Start", exact: true })
+  await expect(startBtn).toBeVisible()
+  // Slot is disabled while overlay is open AND item is locked.
+  // (Items bar isn't shown in overlay; we check after Start.)
+  await startBtn.click()
+  // After Start the lock clears — slot must now be enabled (status="ready" still,
+  // but canUse requires playing, so we start the round first).
+  await page.getByLabel("Cell 5,5").click()
+  await page.waitForTimeout(100)
+  const slot = page.getByRole("listitem").first()
+  await expect(slot).not.toBeDisabled()
+  // localStorage lock should be cleared.
+  const locks = await page.evaluate(() => JSON.parse(localStorage.getItem("ms.itemLocks") ?? "[]"))
+  expect(locks).toEqual([false])
+})
+
+test("items discovery view shows in the menu", async ({ page }) => {
+  await setPersisted(page, { "ms.discoveredItems": ["scan"] })
+  await page.goto("/")
+  await dismissIntro(page)
+  await page.getByLabel("Open menu").click()
+  // Items entry should list 1 of 3.
+  await expect(page.getByLabel("Open items list")).toContainText("1 of 3")
+  await page.getByLabel("Open items list").click()
+  // Scan is known — should show its name.
+  await expect(page.getByRole("group", { name: "Mine Scan" })).toBeVisible()
+  // The other two should show as undiscovered.
+  await expect(page.getByRole("group", { name: "Undiscovered item" })).toHaveCount(2)
+})
+
 test("SwapDialog appears when collecting on a full inventory", async ({ page }) => {
   await setPersisted(page, { "ms.items": ["pick", "pick", "pick"] })
   await page.addInitScript(() => {

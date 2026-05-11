@@ -175,6 +175,47 @@ test("flag-mode toggle inverts tap behaviour", async ({ page }) => {
   expect(after.revealedNumber + after.revealedEmpty).toBe(0)
 })
 
+test("mine counter goes negative and turns red when over-flagging", async ({ page }) => {
+  // Seed a tiny 3×3 board with one mine so we can deterministically place
+  // more flags than mines without fighting the cascade.
+  await page.addInitScript(() => {
+    const board = Array.from({ length: 3 }, (_, r) =>
+      Array.from({ length: 3 }, (_, c) => ({
+        mine: r === 0 && c === 0,
+        adjacent: 0,
+        state: "hidden",
+        bonus: false,
+        twin: false,
+        item: null,
+      })),
+    )
+    window.localStorage.setItem(
+      "ms.activeRound",
+      JSON.stringify({
+        level: 1, rows: 3, cols: 3, mines: 1, bonusTiles: 0,
+        modifierId: "calm", paletteSeed: 0, board,
+        status: "playing", seconds: 0, exploded: null,
+        countdown: null, bonusValue: 5,
+      }),
+    )
+  })
+  await page.goto("/")
+  // Place 2 flags — that's 1 more than the lone mine.
+  await page.locator("button[aria-label='Cell 1,2']").click({ button: "right" })
+  await page.locator("button[aria-label='Cell 1,3']").click({ button: "right" })
+  const counter = page.getByLabel("Too many flags placed")
+  await expect(counter).toBeVisible()
+  await expect(counter).toContainText("-1")
+  // It should also be styled with the danger colour.
+  const color = await counter.evaluate((el) => getComputedStyle(el).color)
+  // The text-color should be the danger token. We can't easily compare to the
+  // exact oklch value, but it should NOT match the default fg colour.
+  const fgColor = await page
+    .locator("[aria-label='Open menu']")
+    .evaluate((el) => getComputedStyle(el).color)
+  expect(color).not.toBe(fgColor)
+})
+
 test("hitting a mine shows the loss overlay and reveals all mines", async ({ page }) => {
   await page.goto("/")
   await dismissIntro(page)
