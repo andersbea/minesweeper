@@ -173,6 +173,12 @@ export function Game() {
   const [itemLocks, setItemLocks] = useLocalStorage<boolean[]>("ms.itemLocks", [])
   // Which item types the player has ever found — drives the discovery view.
   const [discoveredItems, setDiscoveredItems] = useLocalStorage<ItemType[]>("ms.discoveredItems", [])
+  // Snapshot of items (and their lock state) taken when the player clicks
+  // Start on the ReadyOverlay, i.e. the moment the round officially begins.
+  // Used by "Retry level" so the player restores to exactly the inventory
+  // they carried in — not items collected/consumed mid-round.
+  const [roundStartItems, setRoundStartItems] = useLocalStorage<ItemType[]>("ms.roundStartItems", [])
+  const [roundStartItemLocks, setRoundStartItemLocks] = useLocalStorage<boolean[]>("ms.roundStartItemLocks", [])
   // When the player wins a round but their inventory is already full, the
   // drop is queued here until they decide which slot to swap (or skip).
   const [pendingItem, setPendingItem] = useState<ItemType | null>(null)
@@ -600,7 +606,12 @@ export function Game() {
 
   const restartCurrent = () => {
     setMenuOpen(false)
-    startLevel(config.level)
+    // Restore the inventory to exactly what it was when the round began so
+    // collected/consumed items don't persist across retries.
+    setItems([...roundStartItems])
+    setItemLocks([...roundStartItemLocks])
+    // Force the same modifier so the retry plays the same variant.
+    startLevel(config.level, { force: config.modifier.id })
   }
   const nextLevel = () => startLevel(config.level + 1)
   const newRun = () => {
@@ -608,6 +619,8 @@ export function Game() {
     setStreak(0)
     setItems([])
     setItemLocks([])
+    setRoundStartItems([])
+    setRoundStartItemLocks([])
     setPendingItem(null)
     startLevel(1, { force: "calm" })
   }
@@ -640,7 +653,9 @@ export function Game() {
           exploded={exploded}
           shake={shake}
           scanning={scanning}
-          flagMode={flagMode}
+          // First tap must always reveal so mines can be placed around it.
+          // After that (status === "playing"), the real flagMode kicks in.
+          flagMode={status === "ready" ? false : flagMode}
           onReveal={handleReveal}
           onFlag={handleFlag}
           onChord={handleChord}
@@ -695,7 +710,12 @@ export function Game() {
         itemLocks={itemLocks}
         onStart={() => {
           // Unlock all items so they can be used this round.
-          setItemLocks((prev) => prev.map(() => false))
+          const unlockedLocks = items.map(() => false)
+          setItemLocks(unlockedLocks)
+          // Snapshot the inventory at the start of this round so "Retry
+          // level" can restore it even if items are collected/consumed.
+          setRoundStartItems([...items])
+          setRoundStartItemLocks(unlockedLocks)
           setIntroDismissed(true)
         }}
       />

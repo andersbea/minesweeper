@@ -163,16 +163,19 @@ test("long-press flags a cell on touch — independent of flag-mode", async ({ p
 test("flag-mode toggle inverts tap behaviour", async ({ page }) => {
   await page.goto("/")
   await dismissIntro(page)
+  // The first tap on the board always reveals regardless of flag mode —
+  // mines need to be placed around the first click. Do that first, then
+  // enable flag mode to test inversion on all subsequent taps.
+  await page.getByLabel("Cell 5,5").click()
   await page.getByLabel("Switch to flag mode").click()
 
   // A single tap on a hidden cell should now flag, not reveal.
   await page.getByLabel("Cell 1,1").click()
   await expect(page.getByLabel("Cell 1,1").locator("svg.lucide-flag")).toBeVisible()
 
-  // The board should still be all hidden — no cascade.
+  // Board should have exactly 1 flag and Cell 1,1 must not be revealed.
   const after = summarize(await readBoard(page))
   expect(after.flagged).toBe(1)
-  expect(after.revealedNumber + after.revealedEmpty).toBe(0)
 })
 
 test("mine counter goes negative and turns red when over-flagging", async ({ page }) => {
