@@ -60,24 +60,27 @@ export function Board({
     [rows, cols, containerSize],
   )
 
-  // Fog modifier: hide a revealed cell's number unless it has a revealed neighbor.
+  // Fog modifier: a revealed cell shows its number only if it borders the
+  // unexplored area (i.e. has at least one hidden, non-flagged neighbour).
+  // This means interior cascade cells appear blank, and only the *frontier*
+  // numbers — the ones you actually need to read — are visible.
   const fogVisible = useMemo(() => {
     if (modifierId !== "fog") return null
     const visible = Array.from({ length: rows }, () => Array.from({ length: cols }, () => true))
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (board[r][c].state !== "revealed") continue
-        let hasRevealedNeighbor = false
-        for (let dr = -1; dr <= 1 && !hasRevealedNeighbor; dr++) {
-          for (let dc = -1; dc <= 1 && !hasRevealedNeighbor; dc++) {
+        let bordersUnexplored = false
+        for (let dr = -1; dr <= 1 && !bordersUnexplored; dr++) {
+          for (let dc = -1; dc <= 1 && !bordersUnexplored; dc++) {
             if (dr === 0 && dc === 0) continue
             const nr = r + dr
             const nc = c + dc
             if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue
-            if (board[nr][nc].state === "revealed") hasRevealedNeighbor = true
+            if (board[nr][nc].state === "hidden") bordersUnexplored = true
           }
         }
-        visible[r][c] = hasRevealedNeighbor
+        visible[r][c] = bordersUnexplored
       }
     }
     return visible

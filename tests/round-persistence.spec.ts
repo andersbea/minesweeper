@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, readBoard, summarize, waitForAnimations } from "./_helpers"
+import { dismissIntro, freshSession, readBoard, summarize, waitForAnimations } from "./_helpers"
 
 test.beforeEach(async ({ page }) => {
   await freshSession(page)
@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
 
 test("mid-round board state survives a refresh", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   // Reveal a chunk of the board — first click is safe, then cascade.
   await page.getByLabel("Cell 5,5").click()
   // Grab the modifier name + palette text + level number to compare later.
@@ -54,6 +55,7 @@ test("timer value survives a refresh and keeps ticking", async ({ page }) => {
     })
   }
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Cell 5,5").click()
   await page.waitForTimeout(2200)
   const before = await readSec()
@@ -70,6 +72,7 @@ test("timer value survives a refresh and keeps ticking", async ({ page }) => {
 
 test("a lost round still shows the loss overlay after refresh", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   // Click cells until one explodes.
   await page.getByLabel("Cell 1,1").click()
   for (let r = 1; r <= 12; r++) {
@@ -93,6 +96,7 @@ test("a lost round still shows the loss overlay after refresh", async ({ page })
 
 test("New run wipes the saved round so the next reload starts fresh", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Cell 5,5").click()
   await page.waitForTimeout(1100)
   // Sanity: some cells are revealed.

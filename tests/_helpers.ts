@@ -34,6 +34,17 @@ export async function setPersisted(page: Page, kv: Record<string, unknown>) {
   }, Object.entries(kv))
 }
 
+/**
+ * Dismiss the "Ready" intro overlay if it's currently visible. Safe to call
+ * even when the overlay isn't shown (no-op).
+ */
+export async function dismissIntro(page: Page) {
+  const start = page.getByRole("button", { name: "Start", exact: true })
+  if (await start.isVisible({ timeout: 500 }).catch(() => false)) {
+    await start.click()
+  }
+}
+
 export async function readBoard(page: Page) {
   return await page.evaluate(() => {
     const rows = []

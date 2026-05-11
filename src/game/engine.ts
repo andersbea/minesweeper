@@ -167,23 +167,38 @@ export function configForLevel(level: number, opts?: { force?: ModifierId }): Le
   let cols = baseCols
   let mines = Math.round(rows * cols * minePct)
   let bonusTiles = 0
+  let countdown: number | null = null
+  let bonusValue = 5
 
   const modifierId =
     opts?.force ?? MODIFIER_POOL[Math.floor(Math.random() * MODIFIER_POOL.length)]
   const modifier = MODIFIERS[modifierId]
 
   switch (modifier.id) {
-    case "quick":
+    case "quick": {
+      // Smaller board, denser mines, AND a countdown.
       rows = Math.max(7, baseRows - 2)
       cols = Math.max(7, baseCols - 2)
       mines = Math.round(rows * cols * (minePct + 0.03))
+      // Time scales with safe-cell count so larger boards still feel beatable.
+      // Floor ensures very early levels start gentle (~40s on level 1).
+      const safe = rows * cols - mines
+      countdown = Math.max(30, Math.round(safe * 0.9 + level * 3))
       break
+    }
     case "dense":
       mines = Math.round(rows * cols * (minePct + 0.04))
       break
-    case "bonus":
+    case "bonus": {
+      // Countdown mode where revealed bonus tiles extend the clock.
       bonusTiles = 2 + Math.floor(level / 3)
+      bonusValue = 6
+      const safe = rows * cols - mines
+      // Start tight, but each bonus tile is worth `bonusValue` extra seconds,
+      // so the total budget if you find them all = countdown + bonusTiles*bonusValue.
+      countdown = Math.max(25, Math.round(safe * 0.7 + level * 2))
       break
+    }
     case "twin":
       // Round mines down to even count so all can pair.
       if (mines % 2 === 1) mines += 1
@@ -203,5 +218,7 @@ export function configForLevel(level: number, opts?: { force?: ModifierId }): Le
     modifier,
     paletteSeed: Math.floor(Math.random() * PALETTES.length),
     level,
+    countdown,
+    bonusValue,
   }
 }

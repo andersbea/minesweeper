@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, readBoard, summarize } from "./_helpers"
+import { dismissIntro, freshSession, readBoard, summarize } from "./_helpers"
 
 test.beforeEach(async ({ page }) => {
   await freshSession(page)
@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
 
 test("first click reveals at least the centre cell and starts the timer", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Cell 5,5").click()
   const after = summarize(await readBoard(page))
   // First click is guaranteed to land in a safe 3×3 zone, so it reveals
@@ -21,6 +22,7 @@ test("first click reveals at least the centre cell and starts the timer", async 
 
 test("right-click toggles a flag", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Cell 1,1").click({ button: "right" })
   await expect(page.getByLabel("Cell 1,1").locator("svg.lucide-flag")).toBeVisible()
   await page.getByLabel("Cell 1,1").click({ button: "right" })
@@ -29,6 +31,7 @@ test("right-click toggles a flag", async ({ page }) => {
 
 test("clicking a number with no surrounding flags does NOT chord", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Cell 5,5").click()
 
   // Find a numbered cell.
@@ -53,6 +56,7 @@ test("clicking a number with no surrounding flags does NOT chord", async ({ page
 
 test("flagging and clicking a satisfied number reveals all other neighbours", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Cell 5,5").click()
 
   // Locate any "1" with at least one hidden neighbour.
@@ -99,6 +103,7 @@ test("flagging and clicking a satisfied number reveals all other neighbours", as
 
 test("long-press flags a cell on touch — independent of flag-mode", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
 
   async function longPress(label: string) {
     const cell = page.locator(`button[aria-label='${label}']`)
@@ -157,6 +162,7 @@ test("long-press flags a cell on touch — independent of flag-mode", async ({ p
 
 test("flag-mode toggle inverts tap behaviour", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Switch to flag mode").click()
 
   // A single tap on a hidden cell should now flag, not reveal.
@@ -171,6 +177,7 @@ test("flag-mode toggle inverts tap behaviour", async ({ page }) => {
 
 test("hitting a mine shows the loss overlay and reveals all mines", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   // First click to populate the board, then keep clicking until a mine fires.
   await page.getByLabel("Cell 1,1").click()
   // Find a hidden cell that is most likely to be a mine — pick one far from

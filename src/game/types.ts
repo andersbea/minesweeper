@@ -27,6 +27,11 @@ export interface LevelConfig {
   modifier: Modifier
   paletteSeed: number
   level: number
+  // For countdown modes: starting time in seconds. null/undefined = count up.
+  countdown: number | null
+  // Seconds gained per bonus tile revealed (positive in countdown mode = add
+  // time remaining; in count-up mode = subtract from elapsed).
+  bonusValue: number
 }
 
 export type GameStatus = "ready" | "playing" | "won" | "lost"

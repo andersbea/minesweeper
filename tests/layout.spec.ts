@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, expectNoOverflow } from "./_helpers"
+import { dismissIntro, freshSession, expectNoOverflow } from "./_helpers"
 
 test.beforeEach(async ({ page }) => {
   await freshSession(page)
@@ -7,12 +7,14 @@ test.beforeEach(async ({ page }) => {
 
 test("page fills the viewport exactly with no scroll overflow", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.waitForSelector("button[aria-label='Cell 1,1']")
   await expectNoOverflow(page)
 })
 
 test("page fills viewport after orientation/resize", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.waitForSelector("button[aria-label='Cell 1,1']")
   await page.setViewportSize({ width: 1024, height: 768 })
   await expectNoOverflow(page)
@@ -22,6 +24,7 @@ test("page fills viewport after orientation/resize", async ({ page }) => {
 
 test("html, body, root all carry the same height", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   const sizes = await page.evaluate(() => ({
     html: document.documentElement.getBoundingClientRect().height,
     body: document.body.getBoundingClientRect().height,
@@ -35,6 +38,7 @@ test("html, body, root all carry the same height", async ({ page }) => {
 
 test("playbar shows level, modifier, mines, timer", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await expect(page.getByLabel(/Level \d+/)).toBeVisible()
   // Open menu — should reveal stat cards.
   await page.getByLabel("Open menu").click()
@@ -48,6 +52,7 @@ test("playbar shows level, modifier, mines, timer", async ({ page }) => {
 
 test("PWA manifest is linked and contains the required fields", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   const manifestHref = await page.getAttribute("link[rel=manifest]", "href")
   expect(manifestHref).toBeTruthy()
 

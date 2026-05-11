@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, setPersisted, waitForAnimations } from "./_helpers"
+import { dismissIntro, freshSession, setPersisted, waitForAnimations } from "./_helpers"
 
 test.beforeEach(async ({ page }) => {
   await freshSession(page)
@@ -19,6 +19,7 @@ test.describe("timer pause", () => {
 
   test("timer pauses while the menu is open and resumes when closed", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     // First click → starts the timer.
     await page.getByLabel("Cell 5,5").click()
     await page.waitForTimeout(1100)
@@ -50,6 +51,7 @@ test.describe("best times", () => {
       "ms.bestTimes": { calm: 42, fog: 125 }, // 00:42 and 02:05
     })
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()
@@ -69,6 +71,7 @@ test.describe("best times", () => {
       "ms.bestTimes": { calm: 30 },
     })
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()

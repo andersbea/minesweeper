@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, waitForAnimations } from "./_helpers"
+import { dismissIntro, freshSession, waitForAnimations } from "./_helpers"
 
 test.beforeEach(async ({ page }) => {
   await freshSession(page)
@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
 
 test("level badge and modifier name appear in the playbar", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   // The badge text format is two-digit, e.g. "01".
   const badge = page.getByLabel(/Level \d+/)
   await expect(badge).toBeVisible()
@@ -19,6 +20,7 @@ test("level badge and modifier name appear in the playbar", async ({ page }) => 
 
 test("playbar level badge has a gradient background", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   const bg = await page.getByLabel(/Level \d+/).evaluate((el) => getComputedStyle(el).background)
   // Tailwind compiles the inline `linear-gradient(...)` into the background
   // shorthand. We only need to confirm a gradient is actually applied.
@@ -28,6 +30,7 @@ test("playbar level badge has a gradient background", async ({ page }) => {
 
 test("revealed numbers use distinct colors per value", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Cell 5,5").click()
   const colors = await page.evaluate(() => {
     const seen: Record<number, string> = {}
@@ -50,6 +53,7 @@ test("revealed numbers use distinct colors per value", async ({ page }) => {
 
 test("menu sheet anchors at the bottom and is horizontally centred", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Open menu").click()
   const dialog = page.getByRole("dialog", { name: "Game menu" })
   await expect(dialog).toBeVisible()
@@ -74,6 +78,7 @@ test("menu sheet anchors at the bottom and is horizontally centred", async ({ pa
 
 test("menu sheet unmounts when closed (no offscreen DOM)", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   // Closed by default → dialog should not exist.
   await expect(page.getByRole("dialog", { name: "Game menu" })).toHaveCount(0)
   await page.getByLabel("Open menu").click()
@@ -86,6 +91,7 @@ test("menu sheet unmounts when closed (no offscreen DOM)", async ({ page }) => {
 
 test("flag-mode toggle changes its computed appearance", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   const off = await page
     .getByLabel("Switch to flag mode")
     .evaluate((el) => getComputedStyle(el).borderColor)
@@ -98,6 +104,7 @@ test("flag-mode toggle changes its computed appearance", async ({ page }) => {
 
 test("body background contains the round's gradient palette", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundImage)
   expect(bg).toMatch(/radial-gradient/)
   // The CSS uses `oklch(...)` colours, so the computed value should expose
@@ -107,6 +114,7 @@ test("body background contains the round's gradient palette", async ({ page }) =
 
 test("desktop and mobile both render exactly one playbar above the board", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   // A board grid exists.
   const cellCount = await page.locator("button[aria-label^='Cell ']").count()
   expect(cellCount).toBeGreaterThanOrEqual(81) // at least 9×9

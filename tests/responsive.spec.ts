@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, expectNoOverflow, waitForAnimations } from "./_helpers"
+import { dismissIntro, freshSession, expectNoOverflow, waitForAnimations } from "./_helpers"
 
 const VIEWPORTS = [
   { name: "small mobile", w: 320, h: 568 }, // iPhone SE 1st gen
@@ -22,6 +22,7 @@ test.describe("responsive layout", () => {
     test(`${name} (${w}×${h}): no overflow on initial load`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h })
       await page.goto("/")
+  await dismissIntro(page)
       await page.waitForSelector("button[aria-label='Cell 1,1']")
       await expectNoOverflow(page)
     })
@@ -29,6 +30,7 @@ test.describe("responsive layout", () => {
     test(`${name} (${w}×${h}): no overflow with menu open`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h })
       await page.goto("/")
+  await dismissIntro(page)
       await page.getByLabel("Open menu").click()
       await waitForAnimations(page)
       await expectNoOverflow(page)
@@ -39,6 +41,7 @@ test.describe("responsive layout", () => {
     }) => {
       await page.setViewportSize({ width: w, height: h })
       await page.goto("/")
+  await dismissIntro(page)
       await page.waitForSelector("button[aria-label='Cell 1,1']")
 
       const data = await page.evaluate(() => {
@@ -62,6 +65,7 @@ test.describe("responsive layout", () => {
     test(`${name} (${w}×${h}): playbar stays a single row`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h })
       await page.goto("/")
+  await dismissIntro(page)
       const playbarHeight = await page
         .getByLabel("Open menu")
         .locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]")
@@ -73,6 +77,7 @@ test.describe("responsive layout", () => {
     test(`${name} (${w}×${h}): menu sheet anchors at the bottom and centers`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h })
       await page.goto("/")
+  await dismissIntro(page)
       await page.getByLabel("Open menu").click()
       await waitForAnimations(page)
       const data = await page.evaluate(() => {
@@ -109,6 +114,7 @@ test.describe("menu animation", () => {
 
   test("sheet slides up from the bottom on open", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
 
     // Confirm via the Web Animations API that a slide-up keyframe is running.
@@ -135,6 +141,7 @@ test.describe("menu animation", () => {
 
   test("sheet slides down on close", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page) // fully open
 

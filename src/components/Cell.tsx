@@ -47,6 +47,12 @@ function CellInner({
   const isRevealed = cell.state === "revealed"
   const isFlagged = cell.state === "flagged"
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  // Timestamp of the most recent touchend on this cell. We use it to ignore
+  // any synthetic click event the browser emits despite our preventDefault.
+  // Android Chrome in particular sometimes still fires click after a long
+  // touch — that leaked click was triggering reveals on cells the user had
+  // just flagged/unflagged.
+  const lastTouchEndAt = useRef(0)
 
   // Live ref into the latest props/state. The native touch listener below is
   // attached once and reads from this ref every fire — that way it always
@@ -107,6 +113,7 @@ function CellInner({
     const onTouchEnd = (e: TouchEvent) => {
       e.preventDefault()
       clearTimer()
+      lastTouchEndAt.current = Date.now()
       if (longPressFired) return // long-press already acted
 
       // Short tap: replicate the mouse-click behaviour.
@@ -137,9 +144,12 @@ function CellInner({
     }
   }, [])
 
-  // Mouse / keyboard path: regular click handler. Touch never reaches this
-  // because touchstart called preventDefault.
+  // Mouse / keyboard path: regular click handler. Touch *shouldn't* reach
+  // this because touchstart called preventDefault — but Android Chrome
+  // occasionally fires the synthetic click anyway. Drop any click that
+  // arrives within 600ms of a touchend on this cell.
   const handleClick = (e: React.MouseEvent) => {
+    if (Date.now() - lastTouchEndAt.current < 600) return
     if (e.shiftKey || e.altKey) {
       onFlag(row, col)
       return

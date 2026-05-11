@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, setPersisted, waitForAnimations } from "./_helpers"
+import { dismissIntro, freshSession, setPersisted, waitForAnimations } from "./_helpers"
 
 test.beforeEach(async ({ page }) => {
   await freshSession(page)
@@ -9,6 +9,7 @@ test.describe("modifier achievements subpage", () => {
   test("main menu shows a 'Modifiers' entry with x/y discovered count", async ({ page }) => {
     await setPersisted(page, { "ms.unlockedModifiers": ["calm"] })
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
 
@@ -21,6 +22,7 @@ test.describe("modifier achievements subpage", () => {
 
   test("clicking the entry navigates to the modifiers subpage", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
 
@@ -34,6 +36,7 @@ test.describe("modifier achievements subpage", () => {
 
   test("back button returns to main menu view", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()
@@ -46,6 +49,7 @@ test.describe("modifier achievements subpage", () => {
 
   test("re-opening the menu always lands on the main view", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()
@@ -62,6 +66,7 @@ test.describe("modifier achievements subpage", () => {
 
   test("all 6 modifiers are locked by default on the subpage", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()
@@ -75,6 +80,7 @@ test.describe("modifier achievements subpage", () => {
   test("unlocked modifiers reveal their name and description", async ({ page }) => {
     await setPersisted(page, { "ms.unlockedModifiers": ["calm", "fog"] })
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()
@@ -88,6 +94,7 @@ test.describe("modifier achievements subpage", () => {
 
   test("locked tiles render with a Lock icon and dashed border", async ({ page }) => {
     await page.goto("/")
+  await dismissIntro(page)
     await page.getByLabel("Open menu").click()
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()

@@ -4,19 +4,20 @@ export const MODIFIERS: Record<ModifierId, Modifier> = {
   calm: {
     id: "calm",
     name: "Calm",
-    description: "A standard board. No surprises.",
+    description: "A standard board. Timer counts up.",
     icon: "Waves",
   },
   fog: {
     id: "fog",
     name: "Fog",
-    description: "Numbers only show on cells next to revealed ones.",
+    description: "Numbers only appear on cells touching the unexplored area.",
     icon: "Cloud",
   },
   bonus: {
     id: "bonus",
     name: "Bonus Tiles",
-    description: "Sparkling tiles grant +5 seconds when revealed.",
+    description:
+      "Countdown. Sparkling tiles add seconds to the clock when revealed — find them to survive.",
     icon: "Sparkles",
   },
   twin: {
@@ -28,7 +29,7 @@ export const MODIFIERS: Record<ModifierId, Modifier> = {
   quick: {
     id: "quick",
     name: "Quick Round",
-    description: "Smaller board, denser mines. Move fast.",
+    description: "Countdown. Smaller board, but the clock is ticking — beat it before time runs out.",
     icon: "Zap",
   },
   dense: {

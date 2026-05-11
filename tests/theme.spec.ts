@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { freshSession, setPersisted } from "./_helpers"
+import { dismissIntro, freshSession, setPersisted } from "./_helpers"
 
 test.beforeEach(async ({ page }) => {
   await freshSession(page)
@@ -7,11 +7,13 @@ test.beforeEach(async ({ page }) => {
 
 test("default theme is dark", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark")
 })
 
 test("toggle switches html data-theme between dark and light", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   await page.getByLabel("Open menu").click()
   await page.getByLabel("Switch to light mode").click()
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light")
@@ -21,6 +23,7 @@ test("toggle switches html data-theme between dark and light", async ({ page }) 
 
 test("body computed background tracks the theme", async ({ page }) => {
   await page.goto("/")
+  await dismissIntro(page)
   // Read html bg (which is solid `--color-bg`) — easier to assert than the
   // body's gradient stack.
   const darkBg = await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)
@@ -40,5 +43,6 @@ test("body computed background tracks the theme", async ({ page }) => {
 test("theme choice survives reload", async ({ page }) => {
   await setPersisted(page, { "ms.theme": "light" })
   await page.goto("/")
+  await dismissIntro(page)
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light")
 })

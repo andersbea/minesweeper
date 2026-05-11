@@ -44,6 +44,10 @@ interface ActiveRound {
   status: GameStatus
   seconds: number
   exploded: [number, number] | null
+  // Persisted countdown values so a refresh resumes the same time budget.
+  countdown?: number | null
+  bonusValue?: number
+  lossReason?: "mine" | "time" | null
 }
 
 const ACTIVE_ROUND_KEY = "ms.activeRound"
@@ -90,6 +94,8 @@ function configFromSaved(saved: ActiveRound): LevelConfig {
     bonusTiles: saved.bonusTiles,
     modifier: MODIFIERS[saved.modifierId],
     paletteSeed: saved.paletteSeed,
+    countdown: saved.countdown ?? null,
+    bonusValue: saved.bonusValue ?? 5,
   }
 }
 
@@ -107,13 +113,27 @@ export function Game() {
     savedRound ? savedRound.board : makeEmptyBoard(config.rows, config.cols),
   )
   const [status, setStatus] = useState<GameStatus>(savedRound?.status ?? "ready")
-  const [seconds, setSeconds] = useState(savedRound?.seconds ?? 0)
+  // For countdown modes the timer counts DOWN from config.countdown, so the
+  // initial value before any tick should be the full budget.
+  const [seconds, setSeconds] = useState(
+    savedRound?.seconds ?? config.countdown ?? 0,
+  )
   const [exploded, setExploded] = useState<[number, number] | null>(savedRound?.exploded ?? null)
   const [shake, setShake] = useState(false)
   const [floats, setFloats] = useState<FloatText[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
+  // Whether the "Ready" intro is currently shown. Re-set on each new level so
+  // the player always sees the mode declaration before they start.
+  const [introDismissed, setIntroDismissed] = useState(savedRound?.status === "playing")
+  // Why the player lost — drives the lost-overlay copy.
+  const [lossReason, setLossReason] = useState<"mine" | "time" | null>(
+    savedRound?.lossReason ?? null,
+  )
   const floatId = useRef(0)
   const timerRef = useRef<number | null>(null)
+  // Live ref so the interval body (set once) reads the current config.
+  const configRef = useRef(config)
+  configRef.current = config
 
   const [bestLevel, setBestLevel] = useLocalStorage<number>("ms.bestLevel", 0)
   const [streak, setStreak] = useLocalStorage<number>("ms.streak", 0)
@@ -151,30 +171,51 @@ export function Game() {
       bonusTiles: config.bonusTiles,
       modifierId: config.modifier.id,
       paletteSeed: config.paletteSeed,
+      countdown: config.countdown,
+      bonusValue: config.bonusValue,
       board,
       status,
       seconds,
       exploded,
+      lossReason,
     }
     try {
       localStorage.setItem(ACTIVE_ROUND_KEY, JSON.stringify(round))
     } catch {
       // Out of quota or disabled — degrade silently rather than crash.
     }
-  }, [config, board, status, seconds, exploded])
+  }, [config, board, status, seconds, exploded, lossReason])
 
   const minesLeft = Math.max(0, config.mines - countFlags(board))
 
-  const startTimer = useCallback(() => {
-    if (timerRef.current != null) return
-    timerRef.current = window.setInterval(() => setSeconds((s) => s + 1), 1000)
-  }, [])
   const stopTimer = useCallback(() => {
     if (timerRef.current != null) {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
   }, [])
+  const startTimer = useCallback(() => {
+    if (timerRef.current != null) return
+    timerRef.current = window.setInterval(() => {
+      setSeconds((s) => {
+        const cfg = configRef.current
+        if (cfg.countdown != null) {
+          const next = s - 1
+          if (next <= 0) {
+            // Countdown hit zero — player loses to the clock.
+            stopTimer()
+            setStatus("lost")
+            setLossReason("time")
+            setShake(true)
+            window.setTimeout(() => setShake(false), 400)
+            return 0
+          }
+          return next
+        }
+        return s + 1
+      })
+    }, 1000)
+  }, [stopTimer])
   useEffect(() => () => stopTimer(), [stopTimer])
 
   // Pause the timer whenever the menu is open. Resume only if a round is
@@ -190,22 +231,24 @@ export function Game() {
     window.setTimeout(() => setFloats((f) => f.filter((x) => x.id !== id)), 900)
   }
 
-  // Shared post-win bookkeeping: persist best/cleared/streak/wins/unlocks/
-  // best-time. Time isn't read off `seconds` state to avoid stale closures —
-  // pass it in explicitly from the caller.
+  // Shared post-win bookkeeping. `finalSeconds` is the on-clock value at the
+  // moment of victory — elapsed for count-up modes, remaining for countdown
+  // modes. We translate both to a single "time used" metric so best times
+  // are comparable across modes.
   const recordWin = useCallback(
-    (clearedSeconds: number) => {
+    (finalSeconds: number) => {
       setStatus("won")
       stopTimer()
       const id = config.modifier.id
+      const timeUsed = config.countdown != null ? config.countdown - finalSeconds : finalSeconds
       setBestLevel((b) => Math.max(b, config.level))
       setStreak((s) => s + 1)
       setTotalWins((w) => w + 1)
       setUnlockedModifiers((prev) => (prev.includes(id) ? prev : [...prev, id]))
       setBestTimes((prev) => {
         const prevBest = prev[id]
-        if (prevBest == null || clearedSeconds < prevBest) {
-          return { ...prev, [id]: clearedSeconds }
+        if (prevBest == null || timeUsed < prevBest) {
+          return { ...prev, [id]: timeUsed }
         }
         return prev
       })
@@ -213,6 +256,7 @@ export function Game() {
     [
       config.level,
       config.modifier.id,
+      config.countdown,
       stopTimer,
       setBestLevel,
       setStreak,
@@ -228,9 +272,11 @@ export function Game() {
       setConfig(cfg)
       setBoard(makeEmptyBoard(cfg.rows, cfg.cols))
       setStatus("ready")
-      setSeconds(0)
+      setSeconds(cfg.countdown ?? 0)
       setExploded(null)
       setShake(false)
+      setLossReason(null)
+      setIntroDismissed(false)
       setCurrentLevel(nextLevel)
       stopTimer()
     },
@@ -259,6 +305,7 @@ export function Game() {
         setExploded([r, c])
         setShake(true)
         setStatus("lost")
+        setLossReason("mine")
         stopTimer()
         setStreak(0)
         window.setTimeout(() => setShake(false), 400)
@@ -268,19 +315,24 @@ export function Game() {
       const { board: nextBoard, revealed } = revealCascade(working, r, c)
       let bonusGained = 0
       for (const [rr, cc] of revealed) {
-        if (nextBoard[rr][cc].bonus) bonusGained += 5
+        if (nextBoard[rr][cc].bonus) bonusGained += config.bonusValue
       }
       if (bonusGained > 0) {
-        setSeconds((s) => Math.max(0, s - bonusGained))
+        // Countdown modes: extend the clock. Count-up modes: shave elapsed.
+        if (config.countdown != null) {
+          setSeconds((s) => s + bonusGained)
+        } else {
+          setSeconds((s) => Math.max(0, s - bonusGained))
+        }
         pushFloat(`+${bonusGained}s`)
       }
       setBoard(nextBoard)
 
       if (checkWin(nextBoard)) {
-        // Use the timer value that's about to apply this tick — bonusGained
-        // already reduced `seconds`, but the win doesn't grant additional time.
-        const clearedSeconds = Math.max(0, seconds - bonusGained)
-        recordWin(clearedSeconds)
+        // Compute the on-clock value AFTER bonus adjustment for win recording.
+        const finalSeconds =
+          config.countdown != null ? seconds + bonusGained : Math.max(0, seconds - bonusGained)
+        recordWin(finalSeconds)
       }
     },
     [board, config, status, seconds, startTimer, stopTimer, recordWin],
@@ -340,6 +392,7 @@ export function Game() {
         setExploded(hitMine)
         setShake(true)
         setStatus("lost")
+        setLossReason("mine")
         stopTimer()
         setStreak(0)
         window.setTimeout(() => setShake(false), 400)
@@ -347,18 +400,24 @@ export function Game() {
       }
 
       let bonusGained = 0
-      for (const [rr, cc] of allRevealed) if (working[rr][cc].bonus) bonusGained += 5
+      for (const [rr, cc] of allRevealed) if (working[rr][cc].bonus) bonusGained += config.bonusValue
       if (bonusGained > 0) {
-        setSeconds((s) => Math.max(0, s - bonusGained))
+        if (config.countdown != null) {
+          setSeconds((s) => s + bonusGained)
+        } else {
+          setSeconds((s) => Math.max(0, s - bonusGained))
+        }
         pushFloat(`+${bonusGained}s`)
       }
 
       setBoard(working)
       if (checkWin(working)) {
-        recordWin(seconds)
+        const finalSeconds =
+          config.countdown != null ? seconds + bonusGained : Math.max(0, seconds - bonusGained)
+        recordWin(finalSeconds)
       }
     },
-    [board, status, seconds, recordWin],
+    [board, status, seconds, config.bonusValue, config.countdown, recordWin],
   )
 
   const restartCurrent = () => {
@@ -425,11 +484,19 @@ export function Game() {
         onNewRun={newRun}
       />
 
+      <ReadyOverlay
+        visible={status === "ready" && !introDismissed}
+        config={config}
+        palette={palette}
+        onStart={() => setIntroDismissed(true)}
+      />
+
       <Overlay
         status={status}
         config={config}
         seconds={seconds}
         bestLevel={bestLevel}
+        lossReason={lossReason}
         onNext={nextLevel}
         onRetry={restartCurrent}
         onNewRun={newRun}
@@ -443,6 +510,7 @@ function Overlay({
   config,
   seconds,
   bestLevel,
+  lossReason,
   onNext,
   onRetry,
   onNewRun,
@@ -451,6 +519,7 @@ function Overlay({
   config: LevelConfig
   seconds: number
   bestLevel: number
+  lossReason: "mine" | "time" | null
   onNext: () => void
   onRetry: () => void
   onNewRun: () => void
@@ -459,6 +528,12 @@ function Overlay({
   const palette = paletteFor(config.paletteSeed)
   const won = status === "won"
   const isNewBest = won && config.level >= bestLevel
+  const timeUsed = config.countdown != null ? config.countdown - seconds : seconds
+  const lostTitle = lossReason === "time" ? "Time's up" : "You hit a mine"
+  const lostSubtitle =
+    lossReason === "time"
+      ? `Ran out of time on level ${config.level}.`
+      : `Made it ${timeUsed}s into level ${config.level}.`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-md">
@@ -481,12 +556,10 @@ function Overlay({
             {won ? "Cleared" : "Boom"}
           </div>
           <CardTitle className="mt-2 text-3xl">
-            {won ? "Level complete" : "You hit a mine"}
+            {won ? "Level complete" : lostTitle}
           </CardTitle>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            {won
-              ? `Level ${config.level} · ${config.modifier.name} · ${seconds}s`
-              : `Made it ${seconds}s into level ${config.level}.`}
+            {won ? `Level ${config.level} · ${config.modifier.name} · ${timeUsed}s` : lostSubtitle}
           </p>
         </div>
         <CardContent className="flex flex-col gap-3 p-6 pt-3">
@@ -520,4 +593,68 @@ function Overlay({
       </Card>
     </div>
   )
+}
+
+function ReadyOverlay({
+  visible,
+  config,
+  palette,
+  onStart,
+}: {
+  visible: boolean
+  config: LevelConfig
+  palette: { a: string; b: string; name: string }
+  onStart: () => void
+}) {
+  if (!visible) return null
+  const isCountdown = config.countdown != null
+  const timeLabel = isCountdown
+    ? `Countdown · ${formatMMSS(config.countdown!)}`
+    : "Timer counts up"
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-md">
+      <Card className="w-full max-w-md overflow-hidden border-2 border-[var(--color-accent)]/30">
+        <div
+          className="px-6 pt-6 pb-4"
+          style={{
+            background: `linear-gradient(135deg, color-mix(in oklch, ${palette.a} 25%, transparent), color-mix(in oklch, ${palette.b} 18%, transparent))`,
+          }}
+        >
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            <Sparkles className="h-3 w-3" />
+            Level {config.level} · {palette.name}
+          </div>
+          <CardTitle className="mt-2 text-3xl">{config.modifier.name}</CardTitle>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">{config.modifier.description}</p>
+        </div>
+        <CardContent className="flex flex-col gap-3 p-6 pt-3">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg bg-[var(--color-surface-2)]/60 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">
+                Board
+              </div>
+              <div className="font-mono text-sm text-[var(--color-fg)]">
+                {config.rows}×{config.cols} · {config.mines} mines
+              </div>
+            </div>
+            <div className="rounded-lg bg-[var(--color-surface-2)]/60 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">
+                Clock
+              </div>
+              <div className="font-mono text-sm text-[var(--color-fg)]">{timeLabel}</div>
+            </div>
+          </div>
+          <Button className="w-full" onClick={onStart}>
+            Start
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function formatMMSS(seconds: number) {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
