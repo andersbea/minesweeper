@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from "react"
 import { Bomb, Flag, Sparkles } from "lucide-react"
-import { ITEMS, type ItemType } from "@/game/items"
+import { ITEMS } from "@/game/items"
 import type { Cell as CellT } from "@/game/types"
 import { ITEM_ICONS } from "@/lib/item-icons"
 import { multiTouchRef } from "@/lib/touch-state"

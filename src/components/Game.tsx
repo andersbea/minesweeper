@@ -15,7 +15,6 @@ import {
   toggleFlag,
 } from "@/game/engine"
 import { ITEM_MAX, ITEMS, type ItemType } from "@/game/items"
-import { MODIFIERS } from "@/game/modifiers"
 import { paletteFor } from "@/game/palette"
 import {
   ACTIVE_ROUND_KEY,
