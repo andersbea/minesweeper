@@ -1,4 +1,5 @@
 import path from "node:path"
+import { execSync } from "node:child_process"
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
@@ -9,8 +10,21 @@ import { VitePWA } from "vite-plugin-pwa"
 // path-root deploy, the default `/` works.
 const base = process.env.BASE_PATH ?? "/"
 
+// Short git hash baked into the bundle so the menu can show which build is
+// running. Falls back to "dev" when there's no git context.
+function gitHash() {
+  try {
+    return execSync("git rev-parse --short HEAD").toString().trim()
+  } catch {
+    return "dev"
+  }
+}
+
 export default defineConfig({
   base,
+  define: {
+    __APP_HASH__: JSON.stringify(gitHash()),
+  },
   plugins: [
     react(),
     tailwindcss(),

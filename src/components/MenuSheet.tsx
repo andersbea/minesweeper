@@ -292,6 +292,10 @@ function MainView({
           New run
         </Button>
       </div>
+
+      <p className="text-center font-mono text-[10px] text-[var(--color-muted)]">
+        build {__APP_HASH__}
+      </p>
     </>
   )
 }
