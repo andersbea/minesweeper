@@ -43,49 +43,63 @@ export function placeMines(
   const safe = new Set<number>()
   for (const [nr, nc] of neighbors(board, safeR, safeC)) safe.add(nr * cols + nc)
   safe.add(safeR * cols + safeC)
+  const safeCells = rows * cols - totalMines
 
-  const next = board.map((row) => row.map((c) => ({ ...c })))
+  // Try up to N layouts. Reject any whose cascade from (safeR, safeC) would
+  // auto-clear the board — that's the "flag/unflag/reveal → instant win" UX
+  // surprise the player ran into. After enough retries, fall back to the
+  // last attempt (better any board than an infinite loop).
+  let lastCandidate: Board | null = null
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const next = board.map((row) => row.map((c) => ({ ...c })))
+    let placed = 0
+    let attempts = 0
+    const maxAttempts = rows * cols * 10
 
-  let placed = 0
-  let attempts = 0
-  const maxAttempts = rows * cols * 10
-
-  while (placed < totalMines && attempts < maxAttempts) {
-    attempts++
-    const r = Math.floor(Math.random() * rows)
-    const c = Math.floor(Math.random() * cols)
-    if (safe.has(r * cols + c)) continue
-    if (next[r][c].mine) continue
-
-    if (modifier === "twin" && placed + 1 < totalMines) {
-      // Try to place a paired mine on a neighbor.
-      const pool = neighbors(next, r, c).filter(
-        ([nr, nc]) => !next[nr][nc].mine && !safe.has(nr * cols + nc),
-      )
-      if (pool.length === 0) continue
-      const [nr, nc] = pool[Math.floor(Math.random() * pool.length)]
-      next[r][c].mine = true
-      next[r][c].twin = true
-      next[nr][nc].mine = true
-      next[nr][nc].twin = true
-      placed += 2
-    } else {
-      next[r][c].mine = true
-      placed++
-    }
-  }
-
-  // Compute adjacency counts.
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
+    while (placed < totalMines && attempts < maxAttempts) {
+      attempts++
+      const r = Math.floor(Math.random() * rows)
+      const c = Math.floor(Math.random() * cols)
+      if (safe.has(r * cols + c)) continue
       if (next[r][c].mine) continue
-      let count = 0
-      for (const [nr, nc] of neighbors(next, r, c)) if (next[nr][nc].mine) count++
-      next[r][c].adjacent = count
-    }
-  }
 
-  return next
+      if (modifier === "twin" && placed + 1 < totalMines) {
+        // Try to place a paired mine on a neighbor.
+        const pool = neighbors(next, r, c).filter(
+          ([nr, nc]) => !next[nr][nc].mine && !safe.has(nr * cols + nc),
+        )
+        if (pool.length === 0) continue
+        const [nr, nc] = pool[Math.floor(Math.random() * pool.length)]
+        next[r][c].mine = true
+        next[r][c].twin = true
+        next[nr][nc].mine = true
+        next[nr][nc].twin = true
+        placed += 2
+      } else {
+        next[r][c].mine = true
+        placed++
+      }
+    }
+
+    // Compute adjacency counts so revealCascade has the data it needs.
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (next[r][c].mine) continue
+        let count = 0
+        for (const [nr, nc] of neighbors(next, r, c)) if (next[nr][nc].mine) count++
+        next[r][c].adjacent = count
+      }
+    }
+
+    lastCandidate = next
+    // Simulate the cascade that the first click will trigger. If it covers
+    // every safe cell, this layout would auto-win — reroll.
+    const { revealed } = revealCascade(next, safeR, safeC)
+    if (revealed.length < safeCells) return next
+  }
+  // Couldn't find a non-auto-win layout in 12 tries (very rare). Return the
+  // last one so we at least produce a playable round.
+  return lastCandidate!
 }
 
 export function placeBonusTiles(board: Board, count: number): Board {

@@ -41,6 +41,22 @@ test("placing then removing a flag does not trigger a win", async ({ page }) => 
   await expect(page.getByText("Time's up")).toHaveCount(0)
 })
 
+test("flag → unflag → reveal does not auto-win on first click", async ({ page }) => {
+  // Run the user-reported flow 5 times to catch any latent first-click auto-win.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await page.goto("/")
+    // Clear any active round from a previous iteration so this is a fresh first click.
+    await page.evaluate(() => localStorage.removeItem("ms.activeRound"))
+    await page.goto("/")
+    await dismissIntro(page)
+    await page.getByLabel("Cell 5,5").click({ button: "right" }) // flag
+    await page.getByLabel("Cell 5,5").click({ button: "right" }) // unflag
+    await page.getByLabel("Cell 5,5").click() // reveal — must NOT auto-win
+    // After the reveal, the win overlay must not be shown.
+    await expect(page.getByText("Level complete")).toHaveCount(0)
+  }
+})
+
 test("each new level shows the Ready overlay again", async ({ page }) => {
   await page.goto("/")
   await dismissIntro(page)
