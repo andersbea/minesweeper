@@ -13,8 +13,10 @@ import {
   toggleFlag,
 } from "@/game/engine"
 import { MODIFIERS } from "@/game/modifiers"
+import { ITEM_MAX, ITEMS, rollItem, type ItemType } from "@/game/items"
 import type { Board as BoardT, GameStatus, LevelConfig, ModifierId } from "@/game/types"
 import { paletteFor } from "@/game/palette"
+import { ItemsBar } from "./ItemsBar"
 import { Board } from "./Board"
 import { PlayBar } from "./PlayBar"
 import { MenuSheet } from "./MenuSheet"
@@ -152,6 +154,13 @@ export function Game() {
     "ms.bestTimes",
     {},
   )
+  // Item inventory (max 3). Earned on level clear; Lucky Pick / Mine Scan
+  // are manually consumed; Extra Life auto-fires when a mine is clicked.
+  const [items, setItems] = useLocalStorage<ItemType[]>("ms.items", [])
+  // When set, every mine cell pulses red for ~2s (Mine Scan effect).
+  const [scanning, setScanning] = useState(false)
+  // Toast text for an item award / consumption.
+  const [itemToast, setItemToast] = useState<string | null>(null)
   const { theme, toggle: toggleTheme } = useTheme()
 
   const palette = useMemo(() => paletteFor(config.paletteSeed), [config.paletteSeed])
@@ -236,6 +245,11 @@ export function Game() {
   // moment of victory — elapsed for count-up modes, remaining for countdown
   // modes. We translate both to a single "time used" metric so best times
   // are comparable across modes.
+  const pushItemToast = useCallback((text: string) => {
+    setItemToast(text)
+    window.setTimeout(() => setItemToast(null), 1800)
+  }, [])
+
   const recordWin = useCallback(
     (finalSeconds: number) => {
       setStatus("won")
@@ -253,6 +267,14 @@ export function Game() {
         }
         return prev
       })
+      // Item drop: only if inventory has room. Forces the player to use items
+      // rather than hoard them indefinitely.
+      setItems((prev) => {
+        if (prev.length >= ITEM_MAX) return prev
+        const dropped = rollItem(config.level)
+        pushItemToast(`+ ${ITEMS[dropped].name}`)
+        return [...prev, dropped]
+      })
     },
     [
       config.level,
@@ -264,6 +286,8 @@ export function Game() {
       setTotalWins,
       setUnlockedModifiers,
       setBestTimes,
+      setItems,
+      pushItemToast,
     ],
   )
 
@@ -300,6 +324,34 @@ export function Game() {
       if (cell.state === "flagged") return
 
       if (cell.mine) {
+        // If the player has an Extra Life, consume it instead of losing.
+        // The mine is defused (no longer a mine) and the cell is flagged to
+        // make the rescue visible. The round continues.
+        if (items.includes("life")) {
+          const defused = working.map((row) => row.map((c) => ({ ...c })))
+          defused[r][c] = { ...defused[r][c], mine: false, state: "flagged" }
+          // Recompute adjacency for the cell's neighbours since a mine vanished.
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (dr === 0 && dc === 0) continue
+              const nr = r + dr
+              const nc = c + dc
+              if (nr < 0 || nc < 0 || nr >= defused.length || nc >= defused[0].length) continue
+              if (!defused[nr][nc].mine) defused[nr][nc].adjacent--
+            }
+          }
+          setBoard(defused)
+          setItems((prev) => {
+            const idx = prev.indexOf("life")
+            if (idx === -1) return prev
+            const next = [...prev]
+            next.splice(idx, 1)
+            return next
+          })
+          pushItemToast("Extra Life used")
+          if ("vibrate" in navigator) navigator.vibrate(20)
+          return
+        }
         const revealed = revealAllMines(working)
         revealed[r][c] = { ...revealed[r][c], state: "revealed" }
         setBoard(revealed)
@@ -341,7 +393,7 @@ export function Game() {
         recordWin(finalSeconds)
       }
     },
-    [board, config, status, seconds, startTimer, stopTimer, recordWin],
+    [board, config, status, seconds, items, startTimer, stopTimer, setItems, pushItemToast, recordWin],
   )
 
   const handleFlag = useCallback(
@@ -426,6 +478,52 @@ export function Game() {
     [board, status, seconds, config.bonusValue, config.countdown, recordWin],
   )
 
+  // Manually consume an item from the inventory by slot index.
+  const handleUseItem = useCallback(
+    (slot: number) => {
+      const type = items[slot]
+      if (!type) return
+      if (status !== "playing") return // can't use while ready/won/lost
+      if (type === "scan") {
+        setScanning(true)
+        window.setTimeout(() => setScanning(false), 2000)
+        if ("vibrate" in navigator) navigator.vibrate(10)
+      } else if (type === "pick") {
+        // Find every hidden, non-mine, non-flagged cell and reveal one at
+        // random. Use the modifier's reveal rule (cascade vs single).
+        const candidates: [number, number][] = []
+        for (let r = 0; r < board.length; r++) {
+          for (let c = 0; c < board[0].length; c++) {
+            const cell = board[r][c]
+            if (cell.state === "hidden" && !cell.mine) candidates.push([r, c])
+          }
+        }
+        if (candidates.length === 0) return // nothing left to reveal
+        const [pr, pc] = candidates[Math.floor(Math.random() * candidates.length)]
+        const { board: nextBoard } =
+          config.modifier.id === "sniper"
+            ? revealSingle(board, pr, pc)
+            : revealCascade(board, pr, pc)
+        setBoard(nextBoard)
+        if (checkWin(nextBoard)) {
+          const finalSeconds =
+            config.countdown != null ? seconds : Math.max(0, seconds)
+          recordWin(finalSeconds)
+        }
+      } else if (type === "life") {
+        // Lives are auto-consumed; tapping the slot does nothing.
+        return
+      }
+      // Life branches early-return; only manually-consumed items reach here.
+      setItems((prev) => {
+        const next = [...prev]
+        next.splice(slot, 1)
+        return next
+      })
+    },
+    [items, status, board, config, seconds, recordWin, setItems],
+  )
+
   const restartCurrent = () => {
     setMenuOpen(false)
     startLevel(config.level)
@@ -449,12 +547,17 @@ export function Game() {
         onOpenMenu={() => setMenuOpen(true)}
       />
 
+      {items.length > 0 && (
+        <ItemsBar items={items} canUse={status === "playing"} onUse={handleUseItem} />
+      )}
+
       <div className="relative min-h-0 flex-1">
         <Board
           board={board}
           modifierId={config.modifier.id}
           exploded={exploded}
           shake={shake}
+          scanning={scanning}
           flagMode={flagMode}
           onReveal={handleReveal}
           onFlag={handleFlag}
@@ -470,6 +573,16 @@ export function Game() {
             </span>
           ))}
         </div>
+        {itemToast && (
+          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+            <span
+              role="status"
+              className="float-up rounded-full bg-[var(--color-surface)]/90 px-3 py-1 font-mono text-xs font-semibold text-[var(--color-accent)] shadow-lg backdrop-blur"
+            >
+              {itemToast}
+            </span>
+          </div>
+        )}
       </div>
 
       <MenuSheet

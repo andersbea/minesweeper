@@ -29,6 +29,7 @@ interface Props {
   modifierId: string
   exploded: [number, number] | null
   shake: boolean
+  scanning: boolean
   flagMode: boolean
   onReveal: (r: number, c: number) => void
   onFlag: (r: number, c: number) => void
@@ -40,6 +41,7 @@ export function Board({
   modifierId,
   exploded,
   shake,
+  scanning,
   flagMode,
   onReveal,
   onFlag,
@@ -128,6 +130,7 @@ export function Board({
                   size={cellSize}
                   fogged={fogVisible ? !fogVisible[r][c] : false}
                   exploded={exploded ? exploded[0] === r && exploded[1] === c : false}
+                  scanning={scanning}
                   flagMode={flagMode}
                   onReveal={onReveal}
                   onFlag={onFlag}

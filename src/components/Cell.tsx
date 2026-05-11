@@ -21,6 +21,7 @@ interface Props {
   size: number
   fogged: boolean
   exploded: boolean
+  scanning: boolean
   flagMode: boolean
   onReveal: (r: number, c: number) => void
   onFlag: (r: number, c: number) => void
@@ -39,6 +40,7 @@ function CellInner({
   size,
   fogged,
   exploded,
+  scanning,
   flagMode,
   onReveal,
   onFlag,
@@ -194,6 +196,10 @@ function CellInner({
     >
       {!isRevealed && cell.bonus && !isFlagged && (
         <span className="absolute inset-0 rounded-md opacity-30 [background:radial-gradient(circle_at_center,var(--color-flag),transparent_70%)] pointer-events-none" />
+      )}
+
+      {scanning && cell.mine && !isRevealed && (
+        <span className="pointer-events-none absolute inset-0 animate-pulse rounded-md bg-[var(--color-danger)]/40 ring-2 ring-[var(--color-danger)]/70" />
       )}
 
       {isFlagged && (
