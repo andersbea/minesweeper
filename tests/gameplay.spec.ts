@@ -233,9 +233,12 @@ test("hitting a mine shows the loss overlay and reveals all mines", async ({ pag
       const cls = (await cell.getAttribute("class")) ?? ""
       if (!cls.includes("color-surface-2")) continue
       await cell.click()
-      const lostText = page.getByText("You hit a mine")
-      if (await lostText.isVisible().catch(() => false)) {
-        await expect(lostText).toBeVisible()
+      // The loss overlay is intentionally delayed ~1.8 s so the player can see
+      // the revealed mines first. Detect the mine hit synchronously via bomb
+      // icons (revealAllMines fires immediately), then wait for the overlay.
+      const bombs = await page.locator("button[aria-label^='Cell '] svg.lucide-bomb").count()
+      if (bombs > 0) {
+        await expect(page.getByText("You hit a mine")).toBeVisible({ timeout: 3000 })
         await expect(page.getByRole("button", { name: /Retry level/ })).toBeVisible()
         return
       }

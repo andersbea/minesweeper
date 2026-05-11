@@ -82,10 +82,15 @@ test("a lost round still shows the loss overlay after refresh", async ({ page })
       const cls = (await cell.getAttribute("class")) ?? ""
       if (!cls.includes("color-surface-2")) continue
       await cell.click()
-      if (await page.getByText("You hit a mine").isVisible().catch(() => false)) {
-        // Lost — refresh and verify the overlay returns.
+      // Detect the mine hit via bomb icons (synchronous), not the overlay
+      // (which is intentionally delayed ~1.8 s).
+      const bombs = await page.locator("button[aria-label^='Cell '] svg.lucide-bomb").count()
+      if (bombs > 0) {
+        // Give React a tick to persist status:"lost" to localStorage.
+        await page.waitForTimeout(150)
         await page.reload()
-        await expect(page.getByText("You hit a mine")).toBeVisible()
+        // After reload the app re-triggers the 1.8s overlay timer.
+        await expect(page.getByText("You hit a mine")).toBeVisible({ timeout: 3500 })
         await expect(page.getByRole("button", { name: /Retry level/ })).toBeVisible()
         return
       }

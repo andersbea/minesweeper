@@ -278,6 +278,19 @@ export function Game() {
     else if (status === "playing") startTimer()
   }, [menuOpen, status, startTimer, stopTimer])
 
+  // Delay the loss overlay so the player has time to see which mine they hit
+  // and where the rest are. Resets immediately whenever the round is no
+  // longer in a lost state (retry, new run, etc.).
+  const [lostOverlayReady, setLostOverlayReady] = useState(false)
+  useEffect(() => {
+    if (status !== "lost") {
+      setLostOverlayReady(false)
+      return
+    }
+    const t = window.setTimeout(() => setLostOverlayReady(true), 1800)
+    return () => clearTimeout(t)
+  }, [status])
+
   const pushFloat = (text: string) => {
     const id = ++floatId.current
     setFloats((f) => [...f, { id, text }])
@@ -474,19 +487,61 @@ export function Game() {
       }
       if (flagged !== cell.adjacent || hidden.length === 0) return
 
+      // Check for an active Extra Life before iterating so we can defuse
+      // any mine we encounter mid-chord (same logic as handleReveal).
+      const activeLifeIdx = items.findIndex(
+        (item, idx) => item === "life" && !(itemLocks[idx] ?? false),
+      )
+
       // Walk the hidden neighbours, accumulating cascades on the same board.
       let working = board
       const allRevealed: [number, number][] = []
       let hitMine: [number, number] | null = null
+      let lifeUsed = false
+
       for (const [nr, nc] of hidden) {
         if (working[nr][nc].state !== "hidden") continue
         if (working[nr][nc].mine) {
+          if (activeLifeIdx !== -1 && !lifeUsed) {
+            // Defuse with Extra Life: flag the cell, recompute adjacency for
+            // its neighbours, then continue the chord.
+            lifeUsed = true
+            const defused = working.map((row) => row.map((c2) => ({ ...c2 })))
+            defused[nr][nc] = { ...defused[nr][nc], mine: false, state: "flagged" }
+            for (let dr2 = -1; dr2 <= 1; dr2++) {
+              for (let dc2 = -1; dc2 <= 1; dc2++) {
+                if (dr2 === 0 && dc2 === 0) continue
+                const nr2 = nr + dr2
+                const nc2 = nc + dc2
+                if (nr2 < 0 || nc2 < 0 || nr2 >= defused.length || nc2 >= defused[0].length) continue
+                if (!defused[nr2][nc2].mine) defused[nr2][nc2].adjacent--
+              }
+            }
+            working = defused
+            continue
+          }
           hitMine = [nr, nc]
           break
         }
         const step = revealCascade(working, nr, nc)
         working = step.board
         allRevealed.push(...step.revealed)
+      }
+
+      // Consume the Extra Life if it fired.
+      if (lifeUsed) {
+        setItems((prev) => {
+          const next = [...prev]
+          next.splice(activeLifeIdx, 1)
+          return next
+        })
+        setItemLocks((prev) => {
+          const next = [...prev]
+          next.splice(activeLifeIdx, 1)
+          return next
+        })
+        pushItemToast("Extra Life used")
+        if ("vibrate" in navigator) navigator.vibrate(20)
       }
 
       if (hitMine) {
@@ -521,7 +576,8 @@ export function Game() {
         recordWin(finalSeconds)
       }
     },
-    [board, status, seconds, config.bonusValue, config.countdown, recordWin],
+    [board, status, seconds, items, itemLocks, config.bonusValue, config.countdown,
+     stopTimer, recordWin, setItems, setItemLocks, pushItemToast],
   )
 
   // Tap an item badge on a revealed cell to pocket it. Goes into inventory
@@ -722,6 +778,8 @@ export function Game() {
 
       <Overlay
         status={status}
+        // For losses, delay the overlay so the player can see the board.
+        visible={status === "won" || (status === "lost" && lostOverlayReady)}
         config={config}
         seconds={seconds}
         bestLevel={bestLevel}
@@ -761,6 +819,7 @@ export function Game() {
 
 function Overlay({
   status,
+  visible,
   config,
   seconds,
   bestLevel,
@@ -770,6 +829,7 @@ function Overlay({
   onNewRun,
 }: {
   status: GameStatus
+  visible: boolean
   config: LevelConfig
   seconds: number
   bestLevel: number
@@ -778,7 +838,7 @@ function Overlay({
   onRetry: () => void
   onNewRun: () => void
 }) {
-  if (status !== "won" && status !== "lost") return null
+  if (!visible) return null
   const palette = paletteFor(config.paletteSeed)
   const won = status === "won"
   const isNewBest = won && config.level >= bestLevel
