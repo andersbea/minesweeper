@@ -3,8 +3,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Cloud,
+  Crosshair,
   Link2,
   Lock,
+  Maximize,
   Moon,
   MousePointerClick,
   RotateCcw,
@@ -29,7 +31,9 @@ import { cn } from "@/lib/utils"
 
 const MODIFIER_ICONS: Record<string, LucideIcon> = {
   Cloud,
+  Crosshair,
   Link2,
+  Maximize,
   Sparkles,
   Target,
   Waves,

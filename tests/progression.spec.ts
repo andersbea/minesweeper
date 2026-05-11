@@ -15,7 +15,7 @@ test.describe("modifier achievements subpage", () => {
 
     const entry = page.getByRole("button", { name: "Open modifiers list" })
     await expect(entry).toBeVisible()
-    await expect(entry).toContainText("1 of 6 discovered")
+    await expect(entry).toContainText("1 of 8 discovered")
     // The grid itself should NOT be visible on the main view.
     await expect(page.getByRole("group", { name: /Locked modifier|Calm/ })).toHaveCount(0)
   })
@@ -31,7 +31,7 @@ test.describe("modifier achievements subpage", () => {
     await expect(page.getByRole("heading", { name: "Modifiers" })).toBeVisible()
     await expect(page.getByLabel("Back to menu")).toBeVisible()
     // All 6 modifier slots now visible in the grid.
-    await expect(page.getByRole("group", { name: /Locked modifier|Calm|Fog|Bonus|Twin|Quick|Dense/ })).toHaveCount(6)
+    await expect(page.getByRole("group", { name: /Locked modifier|Calm|Fog|Bonus|Twin|Quick|Dense|Big|Sniper/ })).toHaveCount(8)
   })
 
   test("back button returns to main menu view", async ({ page }) => {
@@ -72,9 +72,9 @@ test.describe("modifier achievements subpage", () => {
     await page.getByRole("button", { name: "Open modifiers list" }).click()
 
     const lockedCount = await page.locator('[data-unlocked="false"]').count()
-    expect(lockedCount).toBe(6)
-    // The Badge in the subpage header shows "0/6".
-    await expect(page.getByText("0/6")).toBeVisible()
+    expect(lockedCount).toBe(8)
+    // The Badge in the subpage header shows "0/8".
+    await expect(page.getByText("0/8")).toBeVisible()
   })
 
   test("unlocked modifiers reveal their name and description", async ({ page }) => {
@@ -85,11 +85,11 @@ test.describe("modifier achievements subpage", () => {
     await waitForAnimations(page)
     await page.getByRole("button", { name: "Open modifiers list" }).click()
 
-    await expect(page.getByText("2/6")).toBeVisible()
+    await expect(page.getByText("2/8")).toBeVisible()
     await expect(page.getByRole("group", { name: "Calm" })).toBeVisible()
     await expect(page.getByRole("group", { name: "Fog" })).toBeVisible()
     const locked = await page.locator('[data-unlocked="false"]').count()
-    expect(locked).toBe(4)
+    expect(locked).toBe(6)
   })
 
   test("locked tiles render with a Lock icon and dashed border", async ({ page }) => {

@@ -3,18 +3,24 @@ import type { Board as BoardT } from "@/game/types"
 import { Cell } from "./Cell"
 import { cn } from "@/lib/utils"
 
-// Fit a grid of `rows × cols` cells inside `width × height`, returning a tile
-// size that maintains square cells. Returns sensible defaults when the
-// container hasn't been measured yet.
+// Fit a grid of `rows × cols` cells inside `width × height`. Cells are kept
+// at a comfortable tap-friendly minimum even if that means the board no
+// longer fits — the outer container is scrollable, so the player can pan to
+// reach the rest. This is the right tradeoff on phones: bigger touch
+// targets, even on dense boards.
 function fitCells(rows: number, cols: number, width: number, height: number) {
   const compact = width < 480
   const padding = compact ? 6 : 12
   const gap = compact ? 2 : 4
+  // Minimum tap target ~36px is roughly the WCAG "easy to tap" threshold.
+  const MIN_CELL = compact ? 36 : 40
+  const MAX_CELL = 56
   const availW = Math.max(0, width - padding * 2)
   const availH = Math.max(0, height - padding * 2)
   const byWidth = Math.floor((availW - (cols - 1) * gap) / cols)
   const byHeight = Math.floor((availH - (rows - 1) * gap) / rows)
-  const cellSize = Math.max(18, Math.min(48, Math.min(byWidth, byHeight)))
+  // If the board fits, scale cells up; if not, hold at MIN_CELL and overflow.
+  const cellSize = Math.max(MIN_CELL, Math.min(MAX_CELL, Math.min(byWidth, byHeight)))
   return { cellSize, gap, padding }
 }
 
@@ -87,40 +93,49 @@ export function Board({
   }, [board, modifierId, rows, cols])
 
   return (
-    <div ref={containerRef} className="flex h-full w-full items-center justify-center">
-      <div
-        className={cn(
-          "rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/85 backdrop-blur-xl",
-          "shadow-[0_30px_80px_-30px_color-mix(in_oklch,var(--color-accent)_30%,transparent)]",
-          shake && "shake",
-        )}
-        style={{ padding }}
-        onContextMenu={(e) => e.preventDefault()}
-      >
+    // Scroll container — pans the board when it overflows the viewport. The
+    // browser handles touch scrolling natively (touch-action: pan-x pan-y).
+    <div
+      ref={containerRef}
+      className="h-full w-full overflow-auto overscroll-contain [touch-action:pan-x_pan-y]"
+    >
+      {/* Inner flex centers the board when it fits, otherwise grows to its
+          natural size so the outer scroll container has something to scroll. */}
+      <div className="flex min-h-full min-w-full items-center justify-center p-2">
         <div
-          className="grid"
-          style={{
-            gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
-            gap: `${gap}px`,
-          }}
-        >
-          {board.map((row, r) =>
-            row.map((cell, c) => (
-              <Cell
-                key={`${r}-${c}`}
-                cell={cell}
-                row={r}
-                col={c}
-                size={cellSize}
-                fogged={fogVisible ? !fogVisible[r][c] : false}
-                exploded={exploded ? exploded[0] === r && exploded[1] === c : false}
-                flagMode={flagMode}
-                onReveal={onReveal}
-                onFlag={onFlag}
-                onChord={onChord}
-              />
-            )),
+          className={cn(
+            "shrink-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/85 backdrop-blur-xl",
+            "shadow-[0_30px_80px_-30px_color-mix(in_oklch,var(--color-accent)_30%,transparent)]",
+            shake && "shake",
           )}
+          style={{ padding }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`,
+              gap: `${gap}px`,
+            }}
+          >
+            {board.map((row, r) =>
+              row.map((cell, c) => (
+                <Cell
+                  key={`${r}-${c}`}
+                  cell={cell}
+                  row={r}
+                  col={c}
+                  size={cellSize}
+                  fogged={fogVisible ? !fogVisible[r][c] : false}
+                  exploded={exploded ? exploded[0] === r && exploded[1] === c : false}
+                  flagMode={flagMode}
+                  onReveal={onReveal}
+                  onFlag={onFlag}
+                  onChord={onChord}
+                />
+              )),
+            )}
+          </div>
         </div>
       </div>
     </div>

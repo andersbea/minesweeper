@@ -121,6 +121,15 @@ export function placeBonusTiles(board: Board, count: number): Board {
   return next
 }
 
+// Reveal just one cell, no cascade. Used by Sniper mode and as a building
+// block for the regular cascade.
+export function revealSingle(board: Board, r: number, c: number): { board: Board; revealed: [number, number][] } {
+  const next = board.map((row) => row.map((c) => ({ ...c })))
+  if (next[r][c].state !== "hidden") return { board: next, revealed: [] }
+  next[r][c].state = "revealed"
+  return { board: next, revealed: [[r, c]] }
+}
+
 export function revealCascade(board: Board, r: number, c: number): { board: Board; revealed: [number, number][] } {
   const next = board.map((row) => row.map((c) => ({ ...c })))
   const revealed: [number, number][] = []
@@ -217,6 +226,22 @@ export function configForLevel(level: number, opts?: { force?: ModifierId }): Le
       // Round mines down to even count so all can pair.
       if (mines % 2 === 1) mines += 1
       break
+    case "big": {
+      // Larger board with slightly relaxed density. Designed for panning.
+      rows = Math.min(20, baseRows + 5)
+      cols = Math.min(20, baseCols + 5)
+      mines = Math.round(rows * cols * Math.max(0.1, minePct - 0.02))
+      break
+    }
+    case "sniper": {
+      // Slightly smaller board, normal density. No cascades — the player has
+      // to manually reveal every cell. The engine still places mines; the
+      // "no-cascade" rule is enforced at the reveal call site.
+      rows = Math.max(7, baseRows - 1)
+      cols = Math.max(7, baseCols - 1)
+      mines = Math.round(rows * cols * minePct)
+      break
+    }
     default:
       break
   }

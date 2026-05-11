@@ -1,11 +1,23 @@
-import { Cloud, Link2, Sparkles, Target, Waves, Zap, type LucideIcon } from "lucide-react"
+import {
+  Cloud,
+  Crosshair,
+  Link2,
+  Maximize,
+  Sparkles,
+  Target,
+  Waves,
+  Zap,
+  type LucideIcon,
+} from "lucide-react"
 import type { LevelConfig } from "@/game/types"
 import type { Palette } from "@/game/palette"
 import { Card } from "./ui/card"
 
 const ICONS: Record<string, LucideIcon> = {
   Cloud,
+  Crosshair,
   Link2,
+  Maximize,
   Sparkles,
   Target,
   Waves,

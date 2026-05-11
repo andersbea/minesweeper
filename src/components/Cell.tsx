@@ -61,12 +61,16 @@ function CellInner({
   const live = useRef({ isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col })
   live.current = { isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col }
 
-  // Bind native touch listeners with passive:false so we can preventDefault.
-  // This stops the browser from generating the synthetic click event after
-  // the touch ends — eliminating the entire class of bugs around Android /
-  // iOS re-dispatching clicks after their own gesture engines (selection,
-  // context-menu, drag) intercept a long touch. We make all flag/reveal
-  // decisions inside touchend.
+  // Touch handling has to coexist with browser-native panning:
+  //   - touchstart: start the long-press timer, but DON'T preventDefault.
+  //     Letting the browser see the gesture lets it start a scroll if the
+  //     player drags.
+  //   - touchmove past threshold: cancel the timer — this is a pan, not a tap.
+  //   - touchend: if the timer fired (long-press), call onFlag and suppress
+  //     the synthetic click that follows. Otherwise let the browser emit a
+  //     normal click event, which `handleClick` below converts to a reveal /
+  //     chord. The browser automatically swallows clicks after a scroll, so
+  //     pans never trigger a tap.
   useEffect(() => {
     const el = buttonRef.current
     if (!el) return
@@ -84,9 +88,6 @@ function CellInner({
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return
-      // preventDefault on touchstart: stops the browser from emitting click
-      // events AND stops Android's selection / drag gesture initiation.
-      e.preventDefault()
       const t = e.touches[0]
       startX = t.clientX
       startY = t.clientY
@@ -94,7 +95,6 @@ function CellInner({
       clearTimer()
       timer = window.setTimeout(() => {
         longPressFired = true
-        // Long-press is always a flag; ignore on already-revealed cells.
         if (!live.current.isRevealed) {
           live.current.onFlag(live.current.row, live.current.col)
           if ("vibrate" in navigator) navigator.vibrate(15)
@@ -111,19 +111,12 @@ function CellInner({
     }
 
     const onTouchEnd = (e: TouchEvent) => {
-      e.preventDefault()
       clearTimer()
-      lastTouchEndAt.current = Date.now()
-      if (longPressFired) return // long-press already acted
-
-      // Short tap: replicate the mouse-click behaviour.
-      const { isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col } = live.current
-      if (isRevealed) {
-        if (cell.adjacent > 0) onChord(row, col)
-        return
+      if (longPressFired) {
+        // Stop the synthetic click from toggling the flag back off.
+        e.preventDefault()
+        lastTouchEndAt.current = Date.now()
       }
-      if (flagMode) onFlag(row, col)
-      else onReveal(row, col)
     }
 
     const onTouchCancel = () => {
@@ -131,7 +124,7 @@ function CellInner({
       longPressFired = false
     }
 
-    el.addEventListener("touchstart", onTouchStart, { passive: false })
+    el.addEventListener("touchstart", onTouchStart, { passive: true })
     el.addEventListener("touchmove", onTouchMove, { passive: true })
     el.addEventListener("touchend", onTouchEnd, { passive: false })
     el.addEventListener("touchcancel", onTouchCancel, { passive: true })

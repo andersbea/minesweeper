@@ -54,11 +54,13 @@ test.describe("responsive layout", () => {
       })
 
       expect(data.count).toBeGreaterThanOrEqual(9 * 9)
-      // All cells should be square within rounding.
+      // All cells should be square within rounding, with a comfortable
+      // tap-friendly size. Below 36px gets hard on phones — we'd rather
+      // overflow the viewport and pan than shrink past that.
       for (const s of data.sizes) {
         expect(Math.abs(s.w - s.h)).toBeLessThanOrEqual(1)
-        expect(s.w).toBeGreaterThanOrEqual(18)
-        expect(s.w).toBeLessThanOrEqual(48)
+        expect(s.w).toBeGreaterThanOrEqual(32)
+        expect(s.w).toBeLessThanOrEqual(56)
       }
     })
 

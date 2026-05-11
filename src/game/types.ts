@@ -10,7 +10,15 @@ export interface Cell {
 
 export type Board = Cell[][]
 
-export type ModifierId = "fog" | "bonus" | "twin" | "quick" | "dense" | "calm"
+export type ModifierId =
+  | "fog"
+  | "bonus"
+  | "twin"
+  | "quick"
+  | "dense"
+  | "calm"
+  | "big"
+  | "sniper"
 
 export interface Modifier {
   id: ModifierId

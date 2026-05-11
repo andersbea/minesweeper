@@ -38,6 +38,29 @@ export const MODIFIERS: Record<ModifierId, Modifier> = {
     description: "More mines than usual at this level.",
     icon: "Target",
   },
+  big: {
+    id: "big",
+    name: "Big Board",
+    description: "A larger field of play. Pan to explore — there's no rush.",
+    icon: "Maximize",
+  },
+  sniper: {
+    id: "sniper",
+    name: "Sniper",
+    description:
+      "Every cell you reveal must be a number — no cascades of zero-adjacent cells. Steady aim wins.",
+    icon: "Crosshair",
+  },
 }
 
-export const MODIFIER_POOL: ModifierId[] = ["calm", "calm", "fog", "bonus", "twin", "quick", "dense"]
+export const MODIFIER_POOL: ModifierId[] = [
+  "calm",
+  "calm",
+  "fog",
+  "bonus",
+  "twin",
+  "quick",
+  "dense",
+  "big",
+  "sniper",
+]

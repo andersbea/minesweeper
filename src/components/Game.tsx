@@ -9,6 +9,7 @@ import {
   placeMines,
   revealAllMines,
   revealCascade,
+  revealSingle,
   toggleFlag,
 } from "@/game/engine"
 import { MODIFIERS } from "@/game/modifiers"
@@ -312,7 +313,12 @@ export function Game() {
         return
       }
 
-      const { board: nextBoard, revealed } = revealCascade(working, r, c)
+      // Sniper mode disables the cascade — each safe cell must be revealed
+      // individually. Everything else flood-fills normally.
+      const { board: nextBoard, revealed } =
+        config.modifier.id === "sniper"
+          ? revealSingle(working, r, c)
+          : revealCascade(working, r, c)
       let bonusGained = 0
       for (const [rr, cc] of revealed) {
         if (nextBoard[rr][cc].bonus) bonusGained += config.bonusValue
