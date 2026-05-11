@@ -19,7 +19,7 @@ export function makeEmptyBoard(rows: number, cols: number): Board {
   )
 }
 
-const NEIGHBORS: [number, number][] = [
+export const NEIGHBORS: [number, number][] = [
   [-1, -1], [-1, 0], [-1, 1],
   [0, -1],           [0, 1],
   [1, -1],  [1, 0],  [1, 1],

@@ -1,16 +1,11 @@
-import { Dice5, Heart, Lock, Radar, Sparkles, type LucideIcon } from "lucide-react"
+import { Lock, Sparkles } from "lucide-react"
 import type { LevelConfig } from "@/game/types"
 import { ITEM_MAX, ITEMS, type ItemType } from "@/game/items"
+import { ITEM_ICONS } from "@/lib/item-icons"
 import { formatMMSS } from "@/lib/format"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardTitle } from "./ui/card"
 import { cn } from "@/lib/utils"
-
-const ITEM_ICONS: Record<ItemType, LucideIcon> = {
-  life: Heart,
-  pick: Dice5,
-  scan: Radar,
-}
 
 interface Props {
   visible: boolean

@@ -1,4 +1,5 @@
 import { Flag, Timer, Trophy, Bomb } from "lucide-react"
+import { formatMMSS } from "@/lib/format"
 import { Card } from "./ui/card"
 import { cn } from "@/lib/utils"
 
@@ -55,12 +56,6 @@ interface Props {
   seconds: number
 }
 
-function fmt(seconds: number) {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-}
-
 export function HUD({ level, best, minesLeft, seconds }: Props) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -71,7 +66,7 @@ export function HUD({ level, best, minesLeft, seconds }: Props) {
         value={minesLeft}
         danger={minesLeft < 0}
       />
-      <Stat icon={<Timer className="h-4 w-4" />} label="Time" value={fmt(seconds)} />
+      <Stat icon={<Timer className="h-4 w-4" />} label="Time" value={formatMMSS(seconds)} />
       <Stat icon={<Flag className="h-4 w-4" />} label="Best Lv." value={best || "—"} />
     </div>
   )

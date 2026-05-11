@@ -1,14 +1,9 @@
-import { Dice5, Heart, Radar, Sparkles, X, type LucideIcon } from "lucide-react"
+import { Sparkles, X } from "lucide-react"
 import { ITEMS, type ItemType } from "@/game/items"
+import { ITEM_ICONS } from "@/lib/item-icons"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardTitle } from "./ui/card"
 import { cn } from "@/lib/utils"
-
-const ICONS: Record<ItemType, LucideIcon> = {
-  life: Heart,
-  pick: Dice5,
-  scan: Radar,
-}
 
 interface Props {
   pending: ItemType | null
@@ -20,7 +15,7 @@ interface Props {
 export function SwapDialog({ pending, inventory, onReplace, onSkip }: Props) {
   if (!pending) return null
   const def = ITEMS[pending]
-  const PendingIcon = ICONS[pending]
+  const PendingIcon = ITEM_ICONS[pending]
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-md">
       <Card
@@ -55,7 +50,7 @@ export function SwapDialog({ pending, inventory, onReplace, onSkip }: Props) {
           <div className="flex justify-center gap-3">
             {inventory.map((id, idx) => {
               const itemDef = ITEMS[id]
-              const Icon = ICONS[id]
+              const Icon = ITEM_ICONS[id]
               return (
                 <button
                   key={idx}

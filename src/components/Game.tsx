@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
+  NEIGHBORS,
   checkWin,
   configForLevel,
   countFlags,
+  inBounds,
   makeEmptyBoard,
   placeBonusTiles,
   placeItems,
@@ -180,11 +182,11 @@ export function Game() {
   const minesLeft = config.mines - countFlags(board)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  const pushFloat = (text: string) => {
+  const pushFloat = useCallback((text: string) => {
     const id = ++floatId.current
     setFloats((f) => [...f, { id, text }])
     window.setTimeout(() => setFloats((f) => f.filter((x) => x.id !== id)), FLOAT_LIFETIME_MS)
-  }
+  }, []) // setFloats is stable; floatId is a ref
 
   const pushItemToast = useCallback((text: string) => {
     setItemToast(text)
@@ -192,6 +194,7 @@ export function Game() {
   }, [])
 
   // ── Win bookkeeping ──────────────────────────────────────────────────────
+  // Declared before commitReveal so it can be listed in commitReveal's deps.
   const recordWin = useCallback(
     (finalSeconds: number) => {
       setStatus("won")
@@ -218,6 +221,47 @@ export function Game() {
       setUnlockedModifiers,
       setBestTimes,
     ],
+  )
+
+  // ── Shared helpers ───────────────────────────────────────────────────────
+
+  /** Splice the Extra Life out of inventory and fire haptics + toast. */
+  const consumeExtraLife = useCallback(
+    (lifeIdx: number) => {
+      setItems((prev) => { const n = [...prev]; n.splice(lifeIdx, 1); return n })
+      setItemLocks((prev) => { const n = [...prev]; n.splice(lifeIdx, 1); return n })
+      pushItemToast("Extra Life used")
+      if ("vibrate" in navigator) navigator.vibrate(20)
+    },
+    [setItems, setItemLocks, pushItemToast],
+  )
+
+  /**
+   * Finalise a reveal: count any bonus tiles in `revealed`, adjust the timer,
+   * commit the board, and check for a win.  Used by handleReveal, handleChord,
+   * and handleUseItem so the bonus-and-win block isn't duplicated three times.
+   */
+  const commitReveal = useCallback(
+    (nextBoard: BoardT, revealed: [number, number][]) => {
+      let bonusGained = 0
+      for (const [rr, cc] of revealed) {
+        if (nextBoard[rr][cc].bonus) bonusGained += config.bonusValue
+      }
+      if (bonusGained > 0) {
+        if (config.countdown != null) setSeconds((s) => s + bonusGained)
+        else setSeconds((s) => Math.max(0, s - bonusGained))
+        pushFloat(`+${bonusGained}s`)
+      }
+      setBoard(nextBoard)
+      if (checkWin(nextBoard)) {
+        const finalSeconds =
+          config.countdown != null
+            ? seconds + bonusGained
+            : Math.max(0, seconds - bonusGained)
+        recordWin(finalSeconds)
+      }
+    },
+    [config.bonusValue, config.countdown, seconds, setSeconds, pushFloat, recordWin],
   )
 
   // ── Level management ─────────────────────────────────────────────────────
@@ -265,10 +309,7 @@ export function Game() {
           const defused = working.map((row) => row.map((c) => ({ ...c })))
           defused[r][c] = { ...defused[r][c], mine: false, state: "flagged" }
           setBoard(defused)
-          setItems((prev) => { const n = [...prev]; n.splice(lifeIdx, 1); return n })
-          setItemLocks((prev) => { const n = [...prev]; n.splice(lifeIdx, 1); return n })
-          pushItemToast("Extra Life used")
-          if ("vibrate" in navigator) navigator.vibrate(20)
+          consumeExtraLife(lifeIdx)
           return
         }
         const revealed = revealAllMines(working)
@@ -288,28 +329,12 @@ export function Game() {
         config.modifier.id === "sniper"
           ? revealSingle(working, r, c)
           : revealCascade(working, r, c)
-
-      let bonusGained = 0
-      for (const [rr, cc] of revealed) {
-        if (nextBoard[rr][cc].bonus) bonusGained += config.bonusValue
-      }
-      if (bonusGained > 0) {
-        if (config.countdown != null) setSeconds((s) => s + bonusGained)
-        else setSeconds((s) => Math.max(0, s - bonusGained))
-        pushFloat(`+${bonusGained}s`)
-      }
-      setBoard(nextBoard)
-
-      if (checkWin(nextBoard)) {
-        const finalSeconds =
-          config.countdown != null ? seconds + bonusGained : Math.max(0, seconds - bonusGained)
-        recordWin(finalSeconds)
-      }
+      commitReveal(nextBoard, revealed)
     },
     [
-      board, config, status, seconds, items, itemLocks,
-      startTimer, stopTimer, setItems, setItemLocks, setSeconds,
-      pushItemToast, recordWin,
+      board, config, status, items, itemLocks,
+      startTimer, stopTimer, setStreak,
+      consumeExtraLife, commitReveal,
     ],
   )
 
@@ -331,16 +356,13 @@ export function Game() {
 
       let flagged = 0
       const hidden: [number, number][] = []
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue
-          const nr = r + dr
-          const nc = c + dc
-          if (nr < 0 || nc < 0 || nr >= board.length || nc >= board[0].length) continue
-          const n = board[nr][nc]
-          if (n.state === "flagged") flagged++
-          else if (n.state === "hidden") hidden.push([nr, nc])
-        }
+      for (const [dr, dc] of NEIGHBORS) {
+        const nr = r + dr
+        const nc = c + dc
+        if (!inBounds(board, nr, nc)) continue
+        const n = board[nr][nc]
+        if (n.state === "flagged") flagged++
+        else if (n.state === "hidden") hidden.push([nr, nc])
       }
       if (flagged !== cell.adjacent || hidden.length === 0) return
 
@@ -370,12 +392,7 @@ export function Game() {
         allRevealed.push(...step.revealed)
       }
 
-      if (lifeUsed) {
-        setItems((prev) => { const n = [...prev]; n.splice(lifeIdx, 1); return n })
-        setItemLocks((prev) => { const n = [...prev]; n.splice(lifeIdx, 1); return n })
-        pushItemToast("Extra Life used")
-        if ("vibrate" in navigator) navigator.vibrate(20)
-      }
+      if (lifeUsed) consumeExtraLife(lifeIdx)
 
       if (hitMine) {
         const final = revealAllMines(working)
@@ -391,26 +408,12 @@ export function Game() {
         return
       }
 
-      let bonusGained = 0
-      for (const [rr, cc] of allRevealed) {
-        if (working[rr][cc].bonus) bonusGained += config.bonusValue
-      }
-      if (bonusGained > 0) {
-        if (config.countdown != null) setSeconds((s) => s + bonusGained)
-        else setSeconds((s) => Math.max(0, s - bonusGained))
-        pushFloat(`+${bonusGained}s`)
-      }
-      setBoard(working)
-      if (checkWin(working)) {
-        const finalSeconds =
-          config.countdown != null ? seconds + bonusGained : Math.max(0, seconds - bonusGained)
-        recordWin(finalSeconds)
-      }
+      commitReveal(working, allRevealed)
     },
     [
-      board, status, seconds, items, itemLocks,
-      config.bonusValue, config.countdown,
-      stopTimer, setSeconds, recordWin, setItems, setItemLocks, pushItemToast,
+      board, status, items, itemLocks,
+      stopTimer, setStreak,
+      consumeExtraLife, commitReveal,
     ],
   )
 
@@ -462,27 +465,13 @@ export function Game() {
           config.modifier.id === "sniper"
             ? revealSingle(board, pr, pc)
             : revealCascade(board, pr, pc)
-        let bonusGained = 0
-        for (const [rr, cc] of revealed) {
-          if (nextBoard[rr][cc].bonus) bonusGained += config.bonusValue
-        }
-        if (bonusGained > 0) {
-          if (config.countdown != null) setSeconds((s) => s + bonusGained)
-          else setSeconds((s) => Math.max(0, s - bonusGained))
-          pushFloat(`+${bonusGained}s`)
-        }
-        setBoard(nextBoard)
-        if (checkWin(nextBoard)) {
-          const finalSeconds =
-            config.countdown != null ? seconds + bonusGained : Math.max(0, seconds - bonusGained)
-          recordWin(finalSeconds)
-        }
+        commitReveal(nextBoard, revealed)
       }
 
       setItems((prev) => { const n = [...prev]; n.splice(slot, 1); return n })
       setItemLocks((prev) => { const n = [...prev]; n.splice(slot, 1); return n })
     },
-    [items, status, board, config, seconds, setSeconds, recordWin, setItems, setItemLocks],
+    [items, status, board, config.modifier.id, setItems, setItemLocks, commitReveal],
   )
 
   // ── Navigation actions ───────────────────────────────────────────────────
@@ -603,6 +592,7 @@ export function Game() {
         status={status}
         visible={status === "won" || (status === "lost" && lostOverlayReady)}
         config={config}
+        palette={palette}
         seconds={seconds}
         bestLevel={bestLevel}
         lossReason={lossReason}

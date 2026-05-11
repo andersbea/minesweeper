@@ -12,5 +12,5 @@ export function useTheme() {
 
   const toggle = () => setTheme(theme === "dark" ? "light" : "dark")
 
-  return { theme, setTheme, toggle }
+  return { theme, toggle }
 }

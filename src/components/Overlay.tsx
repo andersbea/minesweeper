@@ -1,6 +1,6 @@
 import { Bomb, ChevronRight, Flag, RotateCcw, Sparkles } from "lucide-react"
 import type { GameStatus, LevelConfig } from "@/game/types"
-import { paletteFor } from "@/game/palette"
+import type { Palette } from "@/game/palette"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardTitle } from "./ui/card"
@@ -11,6 +11,7 @@ interface Props {
   /** Controls mount — false means the overlay is absent from the DOM. */
   visible: boolean
   config: LevelConfig
+  palette: Palette
   /** Current on-clock value (elapsed for count-up, remaining for countdown). */
   seconds: number
   bestLevel: number
@@ -24,6 +25,7 @@ export function Overlay({
   status,
   visible,
   config,
+  palette,
   seconds,
   bestLevel,
   lossReason,
@@ -33,7 +35,6 @@ export function Overlay({
 }: Props) {
   if (!visible) return null
 
-  const palette = paletteFor(config.paletteSeed)
   const won = status === "won"
   const isNewBest = won && config.level >= bestLevel
   const timeUsed = config.countdown != null ? config.countdown - seconds : seconds

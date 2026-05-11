@@ -2,54 +2,28 @@ import { useEffect, useState } from "react"
 import {
   ChevronLeft,
   ChevronRight,
-  Cloud,
-  Crosshair,
-  Dice5,
-  Heart,
-  Link2,
   Lock,
-  Maximize,
   Moon,
   MousePointerClick,
   Package,
-  Radar,
   RotateCcw,
   Sparkles,
   Sun,
-  Target,
   Trophy,
-  Waves,
   X,
-  Zap,
-  type LucideIcon,
 } from "lucide-react"
 import type { LevelConfig, ModifierId } from "@/game/types"
 import type { Palette } from "@/game/palette"
 import type { Theme } from "@/hooks/useTheme"
 import { MODIFIERS } from "@/game/modifiers"
 import { ITEMS, type ItemType } from "@/game/items"
+import { ITEM_ICONS, getModifierIcon } from "@/lib/item-icons"
+import { formatMMSS } from "@/lib/format"
 import { Button } from "./ui/button"
 import { Badge } from "./ui/badge"
 import { ModifierBanner } from "./ModifierBanner"
 import { HUD } from "./HUD"
 import { cn } from "@/lib/utils"
-
-const ITEM_ICONS: Record<ItemType, LucideIcon> = {
-  life: Heart,
-  pick: Dice5,
-  scan: Radar,
-}
-
-const MODIFIER_ICONS: Record<string, LucideIcon> = {
-  Cloud,
-  Crosshair,
-  Link2,
-  Maximize,
-  Sparkles,
-  Target,
-  Waves,
-  Zap,
-}
 
 interface Props {
   open: boolean
@@ -88,30 +62,27 @@ export function MenuSheet({
   onRestart,
   onNewRun,
 }: Props) {
-  // The sheet is unmounted when fully closed so its DOM doesn't sit offscreen.
-  // We use CSS keyframe animations (sheet-enter / sheet-exit) instead of
-  // class-toggled transitions because keyframes have a fixed `from`, so the
-  // slide-up reliably plays even on the very first mount.
-  const [mounted, setMounted] = useState(open)
-  const [closing, setClosing] = useState(false)
+  // "hidden" → fully unmounted, "open" → visible, "closing" → exit animation.
+  // A single enum avoids the two-boolean invariant (mounted + closing).
+  // CSS keyframe animations are used (sheet-enter / sheet-exit) so the slide-up
+  // plays reliably on first mount without a "from" transition ambiguity.
+  const [sheetState, setSheetState] = useState<"hidden" | "open" | "closing">(
+    open ? "open" : "hidden",
+  )
   // Subpage navigation inside the sheet. Reset to "main" each time the sheet
   // re-opens so the user always lands on the top-level menu first.
   const [view, setView] = useState<"main" | "modifiers" | "items">("main")
 
   useEffect(() => {
     if (open) {
-      setMounted(true)
-      setClosing(false)
+      setSheetState("open")
       setView("main")
-    } else if (mounted) {
-      setClosing(true)
-      const t = window.setTimeout(() => {
-        setMounted(false)
-        setClosing(false)
-      }, 300)
+    } else if (sheetState !== "hidden") {
+      setSheetState("closing")
+      const t = window.setTimeout(() => setSheetState("hidden"), 300)
       return () => clearTimeout(t)
     }
-  }, [open, mounted])
+  }, [open, sheetState])
 
   useEffect(() => {
     if (!open) return
@@ -122,14 +93,14 @@ export function MenuSheet({
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
-  if (!mounted) return null
+  if (sheetState === "hidden") return null
 
   return (
     <>
       <div
         onClick={onClose}
         className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-md ${
-          closing ? "scrim-exit pointer-events-none" : "scrim-enter"
+          sheetState === "closing" ? "scrim-exit pointer-events-none" : "scrim-enter"
         }`}
       />
       <div
@@ -137,7 +108,7 @@ export function MenuSheet({
         aria-modal="true"
         aria-label="Game menu"
         className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[90svh] w-full max-w-2xl flex-col gap-3 overflow-y-auto rounded-t-3xl border border-x-0 border-b-0 border-[var(--color-border)] bg-[var(--color-surface)]/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-xl sm:border-x sm:p-5 ${
-          closing ? "sheet-exit" : "sheet-enter"
+          sheetState === "closing" ? "sheet-exit" : "sheet-enter"
         }`}
       >
         <div className="mx-auto h-1 w-10 rounded-full bg-[var(--color-border)] sm:hidden" />
@@ -466,12 +437,6 @@ function ItemsDiscoveryView({
   )
 }
 
-function fmtTime(seconds: number) {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-}
-
 function ModifierAchievements({
   unlocked,
   palette,
@@ -489,7 +454,7 @@ function ModifierAchievements({
       {ids.map((id) => {
         const mod = MODIFIERS[id]
         const isUnlocked = unlockedSet.has(id)
-        const Icon = MODIFIER_ICONS[mod.icon] ?? Sparkles
+        const Icon = getModifierIcon(mod.icon)
         const best = bestTimes[id]
         return (
           <div
@@ -536,7 +501,7 @@ function ModifierAchievements({
             </div>
             {isUnlocked && best != null && (
               <div className="ml-1 shrink-0 rounded-md bg-[var(--color-surface-2)] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--color-fg-soft)]">
-                {fmtTime(best)}
+                {formatMMSS(best)}
               </div>
             )}
           </div>

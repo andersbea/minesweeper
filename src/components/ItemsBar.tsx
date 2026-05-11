@@ -1,13 +1,8 @@
 import { useRef, useState } from "react"
-import { Dice5, Heart, Lock, Radar, type LucideIcon } from "lucide-react"
+import { Lock } from "lucide-react"
 import { ITEM_MAX, ITEMS, type ItemType } from "@/game/items"
+import { ITEM_ICONS } from "@/lib/item-icons"
 import { cn } from "@/lib/utils"
-
-const ICONS: Record<ItemType, LucideIcon> = {
-  life: Heart,
-  pick: Dice5,
-  scan: Radar,
-}
 
 interface Props {
   items: ItemType[]
@@ -56,7 +51,7 @@ export function ItemsBar({ items, itemLocks, canUse, onUse }: Props) {
     >
       {slots.map((slot, i) => {
         const def = slot ? ITEMS[slot] : null
-        const Icon = slot ? ICONS[slot] : null
+        const Icon = slot ? ITEM_ICONS[slot] : null
         const isLocked = slot ? (itemLocks[i] ?? false) : false
         const disabled = !slot || !canUse || slot === "life" || isLocked
         const tipVisible = tooltip === i && !!slot

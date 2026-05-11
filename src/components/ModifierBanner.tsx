@@ -1,28 +1,7 @@
-import {
-  Cloud,
-  Crosshair,
-  Link2,
-  Maximize,
-  Sparkles,
-  Target,
-  Waves,
-  Zap,
-  type LucideIcon,
-} from "lucide-react"
 import type { LevelConfig } from "@/game/types"
 import type { Palette } from "@/game/palette"
+import { getModifierIcon } from "@/lib/item-icons"
 import { Card } from "./ui/card"
-
-const ICONS: Record<string, LucideIcon> = {
-  Cloud,
-  Crosshair,
-  Link2,
-  Maximize,
-  Sparkles,
-  Target,
-  Waves,
-  Zap,
-}
 
 interface Props {
   config: LevelConfig
@@ -30,7 +9,7 @@ interface Props {
 }
 
 export function ModifierBanner({ config, palette }: Props) {
-  const Icon = ICONS[config.modifier.icon] ?? Sparkles
+  const Icon = getModifierIcon(config.modifier.icon)
   return (
     <Card className="overflow-hidden border-[var(--color-accent)]/30">
       <div

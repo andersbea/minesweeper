@@ -1,21 +1,10 @@
 import { memo, useEffect, useRef } from "react"
-import { Bomb, Dice5, Flag, Heart, Radar, Sparkles, type LucideIcon } from "lucide-react"
-import type { ItemType } from "@/game/items"
+import { Bomb, Flag, Sparkles } from "lucide-react"
+import { ITEMS, type ItemType } from "@/game/items"
 import type { Cell as CellT } from "@/game/types"
+import { ITEM_ICONS } from "@/lib/item-icons"
 import { multiTouchRef } from "@/lib/touch-state"
 import { cn } from "@/lib/utils"
-
-const ITEM_ICONS: Record<ItemType, LucideIcon> = {
-  life: Heart,
-  pick: Dice5,
-  scan: Radar,
-}
-
-const ITEM_LABELS: Record<ItemType, string> = {
-  life: "Extra Life",
-  pick: "Lucky Pick",
-  scan: "Mine Scan",
-}
 
 const NUMBER_CLASSES: Record<number, string> = {
   1: "text-[oklch(0.85_0.14_220)] [[data-theme=light]_&]:text-[oklch(0.5_0.18_240)]",
@@ -246,7 +235,7 @@ function CellInner({
             : "bg-[var(--color-surface)]/40 border border-[var(--color-border)]/40"),
         isFlagged && "bg-[var(--color-surface-2)] border border-[var(--color-flag)]/60",
       )}
-      aria-label={`Cell ${row + 1},${col + 1}${isRevealed && cell.item ? ` — collect ${ITEM_LABELS[cell.item]}` : ""}`}
+      aria-label={`Cell ${row + 1},${col + 1}${isRevealed && cell.item ? ` — collect ${ITEMS[cell.item].name}` : ""}`}
       data-cell-state={isFlagged ? "flagged" : isRevealed ? "revealed" : "hidden"}
       data-row={row}
       data-col={col}
