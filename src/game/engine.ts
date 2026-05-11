@@ -1,12 +1,20 @@
 import type { Board, Cell, LevelConfig, ModifierId } from "./types"
 import { MODIFIERS, MODIFIER_POOL } from "./modifiers"
 import { PALETTES } from "./palette"
+import { rollItem } from "./items"
 
 export function makeEmptyBoard(rows: number, cols: number): Board {
   return Array.from({ length: rows }, () =>
     Array.from(
       { length: cols },
-      (): Cell => ({ mine: false, adjacent: 0, state: "hidden", bonus: false, twin: false }),
+      (): Cell => ({
+        mine: false,
+        adjacent: 0,
+        state: "hidden",
+        bonus: false,
+        twin: false,
+        item: null,
+      }),
     ),
   )
 }
@@ -100,6 +108,42 @@ export function placeMines(
   // Couldn't find a non-auto-win layout in 12 tries (very rare). Return the
   // last one so we at least produce a playable round.
   return lastCandidate!
+}
+
+/**
+ * Drop a single random item onto the board (excluding mines, bonus tiles,
+ * and the safe-zone around the first click). The player must reveal AND
+ * tap the cell to collect — no auto-grants. Returns the modified board.
+ */
+export function placeItems(
+  board: Board,
+  level: number,
+  safeR: number,
+  safeC: number,
+): Board {
+  const rows = board.length
+  const cols = board[0].length
+  const safe = new Set<number>()
+  for (const [nr, nc] of NEIGHBORS) {
+    const r = safeR + nr
+    const c = safeC + nc
+    if (r < 0 || c < 0 || r >= rows || c >= cols) continue
+    safe.add(r * cols + c)
+  }
+  safe.add(safeR * cols + safeC)
+
+  const next = board.map((row) => row.map((c) => ({ ...c })))
+  const item: Cell["item"] = rollItem(level)
+  for (let attempts = 0; attempts < rows * cols * 5; attempts++) {
+    const r = Math.floor(Math.random() * rows)
+    const c = Math.floor(Math.random() * cols)
+    const cell = next[r][c]
+    if (cell.mine || cell.bonus || cell.item) continue
+    if (safe.has(r * cols + c)) continue
+    cell.item = item
+    return next
+  }
+  return next
 }
 
 export function placeBonusTiles(board: Board, count: number): Board {

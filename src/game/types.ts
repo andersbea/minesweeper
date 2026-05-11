@@ -1,3 +1,5 @@
+import type { ItemType } from "./items"
+
 export type CellState = "hidden" | "revealed" | "flagged"
 
 export interface Cell {
@@ -6,6 +8,9 @@ export interface Cell {
   state: CellState
   bonus: boolean // bonus tile - grants extra time
   twin: boolean // marks one half of a twin-mine pair (cosmetic indicator only)
+  // Inventory item embedded in the cell. Revealing the cell exposes a badge;
+  // the player has to tap the badge to actually pocket the item.
+  item: ItemType | null
 }
 
 export type Board = Cell[][]

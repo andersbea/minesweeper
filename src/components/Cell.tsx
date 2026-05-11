@@ -1,8 +1,15 @@
 import { memo, useEffect, useRef } from "react"
-import { Bomb, Flag, Sparkles } from "lucide-react"
+import { Bomb, Dice5, Flag, Heart, Radar, Sparkles, type LucideIcon } from "lucide-react"
+import type { ItemType } from "@/game/items"
 import type { Cell as CellT } from "@/game/types"
 import { multiTouchRef } from "@/lib/touch-state"
 import { cn } from "@/lib/utils"
+
+const ITEM_ICONS: Record<ItemType, LucideIcon> = {
+  life: Heart,
+  pick: Dice5,
+  scan: Radar,
+}
 
 const NUMBER_CLASSES: Record<number, string> = {
   1: "text-[oklch(0.85_0.14_220)] [[data-theme=light]_&]:text-[oklch(0.5_0.18_240)]",
@@ -27,6 +34,7 @@ interface Props {
   onReveal: (r: number, c: number) => void
   onFlag: (r: number, c: number) => void
   onChord: (r: number, c: number) => void
+  onCollect: (r: number, c: number) => void
 }
 
 const LONG_PRESS_MS = 280
@@ -46,6 +54,7 @@ function CellInner({
   onReveal,
   onFlag,
   onChord,
+  onCollect,
 }: Props) {
   const isRevealed = cell.state === "revealed"
   const isFlagged = cell.state === "flagged"
@@ -61,8 +70,28 @@ function CellInner({
   // attached once and reads from this ref every fire — that way it always
   // sees the current `flagMode`, `cell`, etc. without needing to be
   // re-bound on every render.
-  const live = useRef({ isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col })
-  live.current = { isRevealed, cell, flagMode, onReveal, onFlag, onChord, row, col }
+  const live = useRef({
+    isRevealed,
+    cell,
+    flagMode,
+    onReveal,
+    onFlag,
+    onChord,
+    onCollect,
+    row,
+    col,
+  })
+  live.current = {
+    isRevealed,
+    cell,
+    flagMode,
+    onReveal,
+    onFlag,
+    onChord,
+    onCollect,
+    row,
+    col,
+  }
 
   // Touch handling has to coexist with browser-native panning:
   //   - touchstart: start the long-press timer, but DON'T preventDefault.
@@ -159,6 +188,11 @@ function CellInner({
       return
     }
     if (isRevealed) {
+      // Item badge wins over chord — collect first, chord on a later click.
+      if (cell.item) {
+        onCollect(row, col)
+        return
+      }
       if (cell.adjacent > 0) onChord(row, col)
       return
     }
@@ -171,7 +205,8 @@ function CellInner({
     if (!isRevealed) onFlag(row, col)
   }
 
-  const showNumber = isRevealed && !cell.mine && cell.adjacent > 0 && !fogged
+  const showNumber = isRevealed && !cell.mine && cell.adjacent > 0 && !fogged && !cell.item
+  const ItemIcon = cell.item ? ITEM_ICONS[cell.item] : null
 
   return (
     <button
@@ -231,6 +266,17 @@ function CellInner({
 
       {showNumber && (
         <span className={cn("cell-pop", NUMBER_CLASSES[cell.adjacent])}>{cell.adjacent}</span>
+      )}
+
+      {isRevealed && ItemIcon && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+        >
+          <span className="cell-pop animate-pulse rounded-full bg-[var(--color-accent)]/30 p-1 text-[var(--color-fg)] ring-2 ring-[var(--color-accent)]">
+            <ItemIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
+          </span>
+        </span>
       )}
     </button>
   )

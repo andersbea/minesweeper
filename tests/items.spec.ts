@@ -105,24 +105,26 @@ test("New Run wipes the item inventory", async ({ page }) => {
   expect(stored).toEqual([])
 })
 
-test("SwapDialog appears when a new item drops onto a full inventory", async ({ page }) => {
-  // Seed full inventory + a saved round that's one click away from winning.
-  // We can't deterministically force a win via UI, so we mount a near-win
-  // active round via storage: a 9x9 board with all non-mine cells already
-  // revealed except one, plus a known mine layout.
-  await setPersisted(page, { "ms.items": ["pick", "pick", "pick"] })
+test("collecting an item from a board cell adds it to inventory", async ({ page }) => {
+  // Seed a round where revealing the item cell isn't a winning click:
+  // mine at (0,0), item on (1,1) (adjacent=1 → no cascade), and (2,1)
+  // also hidden so the win condition isn't met.
   await page.addInitScript(() => {
-    // Build a 3x3 board, 1 mine at (0,0). All non-mine cells revealed except (2,2).
     const rows = 3
     const cols = 3
+    const adjacent = (r: number, c: number) =>
+      // (0,0) is the only mine.
+      r === 0 && c === 0 ? 0 : (r <= 1 && c <= 1 ? 1 : 0)
+    const hidden = (r: number, c: number) =>
+      (r === 0 && c === 0) || (r === 1 && c === 1) || (r === 2 && c === 1)
     const board = Array.from({ length: rows }, (_, r) =>
       Array.from({ length: cols }, (_, c) => ({
         mine: r === 0 && c === 0,
-        adjacent: r === 0 && c === 0 ? 0 : r <= 1 && c <= 1 ? 1 : 0,
-        // Reveal every non-mine cell except (2,2) — that's our winning click.
-        state: r === 0 && c === 0 ? "hidden" : !(r === 2 && c === 2) ? "revealed" : "hidden",
+        adjacent: adjacent(r, c),
+        state: hidden(r, c) ? "hidden" : "revealed",
         bonus: false,
         twin: false,
+        item: r === 1 && c === 1 ? "scan" : null,
       })),
     )
     window.localStorage.setItem(
@@ -145,17 +147,65 @@ test("SwapDialog appears when a new item drops onto a full inventory", async ({ 
     )
   })
   await page.goto("/")
-  // No intro: round is already in progress (status: "playing").
-  // Click the winning cell.
-  await page.getByLabel("Cell 3,3").click()
-  // The win triggers a drop into a full inventory → SwapDialog appears.
+  // Reveal the item cell. After reveal, the badge should appear.
+  await page.getByLabel("Cell 2,2").click()
+  // Inventory still empty until the player taps the badge.
+  let stored = await page.evaluate(() => JSON.parse(localStorage.getItem("ms.items") ?? "[]"))
+  expect(stored).toEqual([])
+  // Tap the cell again → collect.
+  await page.getByLabel("Cell 2,2").click()
+  stored = await page.evaluate(() => JSON.parse(localStorage.getItem("ms.items") ?? "[]"))
+  expect(stored).toEqual(["scan"])
+  // Bar appears with the item.
+  await expect(page.getByRole("list", { name: "Items" })).toBeVisible()
+})
+
+test("SwapDialog appears when collecting on a full inventory", async ({ page }) => {
+  await setPersisted(page, { "ms.items": ["pick", "pick", "pick"] })
+  await page.addInitScript(() => {
+    const rows = 3
+    const cols = 3
+    const adjacent = (r: number, c: number) =>
+      r === 0 && c === 0 ? 0 : (r <= 1 && c <= 1 ? 1 : 0)
+    const hidden = (r: number, c: number) =>
+      (r === 0 && c === 0) || (r === 1 && c === 1) || (r === 2 && c === 1)
+    const board = Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: cols }, (_, c) => ({
+        mine: r === 0 && c === 0,
+        adjacent: adjacent(r, c),
+        state: hidden(r, c) ? "hidden" : "revealed",
+        bonus: false,
+        twin: false,
+        item: r === 1 && c === 1 ? "life" : null,
+      })),
+    )
+    window.localStorage.setItem(
+      "ms.activeRound",
+      JSON.stringify({
+        level: 1,
+        rows,
+        cols,
+        mines: 1,
+        bonusTiles: 0,
+        modifierId: "calm",
+        paletteSeed: 0,
+        board,
+        status: "playing",
+        seconds: 5,
+        exploded: null,
+        countdown: null,
+        bonusValue: 5,
+      }),
+    )
+  })
+  await page.goto("/")
+  await page.getByLabel("Cell 2,2").click() // reveal item cell
+  await page.getByLabel("Cell 2,2").click() // tap to collect → swap dialog
   await expect(page.getByRole("dialog", { name: "Replace an item" })).toBeVisible()
-  // Dialog shows three replaceable slot buttons.
   const slotButtons = page
     .getByRole("dialog", { name: "Replace an item" })
     .getByRole("button", { name: /^Replace / })
   await expect(slotButtons).toHaveCount(3)
-  // Skip option discards the new item, dismisses the dialog.
   await page.getByRole("button", { name: /^Skip/ }).click()
   await expect(page.getByRole("dialog", { name: "Replace an item" })).toHaveCount(0)
 })

@@ -38,6 +38,7 @@ interface Props {
   onReveal: (r: number, c: number) => void
   onFlag: (r: number, c: number) => void
   onChord: (r: number, c: number) => void
+  onCollect: (r: number, c: number) => void
 }
 
 export function Board({
@@ -50,6 +51,7 @@ export function Board({
   onReveal,
   onFlag,
   onChord,
+  onCollect,
 }: Props) {
   const rows = board.length
   const cols = board[0]?.length ?? 0
@@ -245,6 +247,7 @@ export function Board({
                     onReveal={onReveal}
                     onFlag={onFlag}
                     onChord={onChord}
+                    onCollect={onCollect}
                   />
                 )),
               )}

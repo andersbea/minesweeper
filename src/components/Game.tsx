@@ -6,6 +6,7 @@ import {
   countFlags,
   makeEmptyBoard,
   placeBonusTiles,
+  placeItems,
   placeMines,
   revealAllMines,
   revealCascade,
@@ -13,7 +14,7 @@ import {
   toggleFlag,
 } from "@/game/engine"
 import { MODIFIERS } from "@/game/modifiers"
-import { ITEM_MAX, ITEMS, rollItem, type ItemType } from "@/game/items"
+import { ITEM_MAX, ITEMS, type ItemType } from "@/game/items"
 import type { Board as BoardT, GameStatus, LevelConfig, ModifierId } from "@/game/types"
 import { paletteFor } from "@/game/palette"
 import { ItemsBar } from "./ItemsBar"
@@ -288,17 +289,8 @@ export function Game() {
         }
         return prev
       })
-      // Item drop. If there's room, slot it directly; otherwise queue a
-      // swap dialog so the player can choose what to replace.
-      const dropped = rollItem(config.level)
-      setItems((prev) => {
-        if (prev.length < ITEM_MAX) {
-          pushItemToast(`+ ${ITEMS[dropped].name}`)
-          return [...prev, dropped]
-        }
-        setPendingItem(dropped)
-        return prev
-      })
+      // Items now drop on the board itself (see `placeItems`) and must be
+      // tapped to collect — no auto-grant on win.
     },
     [
       config.level,
@@ -340,6 +332,9 @@ export function Game() {
       if (status === "ready") {
         working = placeMines(working, config.mines, r, c, config.modifier.id)
         if (config.bonusTiles > 0) working = placeBonusTiles(working, config.bonusTiles)
+        // Always drop one item per round, away from the safe-zone so the
+        // player has to actively explore to find and collect it.
+        working = placeItems(working, config.level, r, c)
         setStatus("playing")
         startTimer()
       }
@@ -502,6 +497,30 @@ export function Game() {
     [board, status, seconds, config.bonusValue, config.countdown, recordWin],
   )
 
+  // Tap an item badge on a revealed cell to pocket it. Goes into inventory
+  // if there's room, otherwise queues the swap dialog.
+  const handleCollect = useCallback(
+    (r: number, c: number) => {
+      if (status !== "playing") return
+      const cell = board[r][c]
+      if (!cell.item || cell.state !== "revealed") return
+      const dropped = cell.item
+      const next = board.map((row) => row.map((c) => ({ ...c })))
+      next[r][c].item = null
+      setBoard(next)
+      setItems((prev) => {
+        if (prev.length < ITEM_MAX) {
+          pushItemToast(`+ ${ITEMS[dropped].name}`)
+          return [...prev, dropped]
+        }
+        setPendingItem(dropped)
+        return prev
+      })
+      if ("vibrate" in navigator) navigator.vibrate(8)
+    },
+    [board, status, setItems, pushItemToast],
+  )
+
   // Manually consume an item from the inventory by slot index.
   const handleUseItem = useCallback(
     (slot: number) => {
@@ -588,6 +607,7 @@ export function Game() {
           onReveal={handleReveal}
           onFlag={handleFlag}
           onChord={handleChord}
+          onCollect={handleCollect}
         />
         <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
           {floats.map((f) => (
