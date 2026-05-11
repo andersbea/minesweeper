@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef } from "react"
 import { Bomb, Flag, Sparkles } from "lucide-react"
 import type { Cell as CellT } from "@/game/types"
+import { multiTouchRef } from "@/lib/touch-state"
 import { cn } from "@/lib/utils"
 
 const NUMBER_CLASSES: Record<number, string> = {
@@ -89,13 +90,21 @@ function CellInner({
     }
 
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return
+      if (e.touches.length !== 1) {
+        // A second finger landed (or more) — abort the long-press timer so
+        // pinch / multi-touch gestures don't accidentally place a flag.
+        clearTimer()
+        return
+      }
       const t = e.touches[0]
       startX = t.clientX
       startY = t.clientY
       longPressFired = false
       clearTimer()
       timer = window.setTimeout(() => {
+        // Multi-touch could have started after this touchstart fired — if so,
+        // bail.
+        if (multiTouchRef.current > 1) return
         longPressFired = true
         if (!live.current.isRevealed) {
           live.current.onFlag(live.current.row, live.current.col)

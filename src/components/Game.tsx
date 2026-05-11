@@ -26,6 +26,7 @@ import { Card, CardContent, CardTitle } from "./ui/card"
 import { Badge } from "./ui/badge"
 import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { useTheme } from "@/hooks/useTheme"
+import { multiTouchRef } from "@/lib/touch-state"
 import { cn } from "@/lib/utils"
 
 interface FloatText {
@@ -173,6 +174,22 @@ export function Game() {
     document.body.style.setProperty("--gradient-a", palette.a)
     document.body.style.setProperty("--gradient-b", palette.b)
   }, [palette])
+
+  // Track total active touches so cells can skip long-press while the
+  // player is mid-pinch.
+  useEffect(() => {
+    const update = (e: TouchEvent) => {
+      multiTouchRef.current = e.touches.length
+    }
+    window.addEventListener("touchstart", update, { passive: true })
+    window.addEventListener("touchend", update, { passive: true })
+    window.addEventListener("touchcancel", update, { passive: true })
+    return () => {
+      window.removeEventListener("touchstart", update)
+      window.removeEventListener("touchend", update)
+      window.removeEventListener("touchcancel", update)
+    }
+  }, [])
 
   // Persist a snapshot of the round on every change to board/status/seconds/
   // exploded/config. Refreshing or reopening the app rehydrates from this.
