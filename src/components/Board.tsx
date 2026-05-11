@@ -200,13 +200,18 @@ export function Board({
     // two-finger drag scales+pans via the effect above.
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-auto overscroll-contain [touch-action:pan-x_pan-y]"
+      className="board-scroll relative h-full w-full overflow-auto overscroll-contain [touch-action:pan-x_pan-y]"
     >
-      {/* Wrapper sized to the *scaled* dimensions so the outer container
-          has something to scroll. Centers the board when it fits. */}
-      <div className="flex min-h-full min-w-full items-center justify-center p-2">
+      {/* Wrapper that is at least as large as the scroll container so the
+          board can be centred via `m-auto` when it fits. When the board
+          overflows, `m-auto` resolves to 0 (correct per spec) and the
+          px-4 padding becomes the visible side margin. We deliberately do
+          NOT use `justify-content: center` here because that has a
+          long-standing browser bug where the overflow is clipped on the
+          start side, making the left edge of the board unreachable. */}
+      <div className="flex min-h-full min-w-full px-4 py-3">
         <div
-          className="relative shrink-0"
+          className="relative m-auto shrink-0"
           style={{ width: scaledWidth, height: scaledHeight }}
         >
           {/* Board card itself, sized to natural dimensions and CSS-scaled

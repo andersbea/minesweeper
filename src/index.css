@@ -155,3 +155,15 @@ body {
     padding-right: max(1.25rem, env(safe-area-inset-right));
   }
 }
+
+/* Hide scrollbars on touch / mobile — the board is navigated via pinch-zoom
+   and one-finger pan, so visible scrollbars add noise without helping.
+   Desktop (pointer: fine) keeps them for mouse-drag discoverability. */
+@media (pointer: coarse) {
+  .board-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .board-scroll {
+    scrollbar-width: none;
+  }
+}
