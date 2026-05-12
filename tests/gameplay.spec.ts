@@ -206,9 +206,11 @@ test("mine counter goes negative and turns red when over-flagging", async ({ pag
   // Place 2 flags — that's 1 more than the lone mine.
   await page.locator("button[aria-label='Cell 1,2']").click({ button: "right" })
   await page.locator("button[aria-label='Cell 1,3']").click({ button: "right" })
-  const counter = page.getByLabel("Too many flags placed")
+  // aria-label now includes the excess count for screen readers
+  const counter = page.getByLabel("Too many flags placed — 1 extra")
   await expect(counter).toBeVisible()
-  await expect(counter).toContainText("-1")
+  // Visual text shows "+1" (positive excess) with a flag icon, not "-1"
+  await expect(counter).toContainText("+1")
   // It should also be styled with the danger colour.
   const color = await counter.evaluate((el) => getComputedStyle(el).color)
   // The text-color should be the danger token. We can't easily compare to the

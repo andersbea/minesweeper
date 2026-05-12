@@ -48,24 +48,27 @@ export function PlayBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        {/* Mine / over-flag counter.
+            Normal: bomb icon + mines-remaining count.
+            Over-flagged: flag icon + positive excess so it's obvious the
+            *flags* are the problem, not a mine count. */}
         <div
           className={cn(
             "flex items-center gap-1.5 font-mono tabular-nums text-sm",
-            minesLeft < 0
-              ? "text-[var(--color-danger)]"
-              : "text-[var(--color-fg)]",
+            minesLeft < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-fg)]",
           )}
-          aria-label={minesLeft < 0 ? "Too many flags placed" : `${minesLeft} mines remaining`}
+          aria-label={
+            minesLeft < 0
+              ? `Too many flags placed — ${Math.abs(minesLeft)} extra`
+              : `${minesLeft} mines remaining`
+          }
         >
-          <Bomb
-            className={cn(
-              "h-3.5 w-3.5",
-              minesLeft < 0
-                ? "text-[var(--color-danger)]"
-                : "text-[var(--color-fg-soft)]",
-            )}
-          />
-          {minesLeft}
+          {minesLeft < 0 ? (
+            <Flag className="h-3.5 w-3.5 text-[var(--color-danger)]" strokeWidth={2.5} />
+          ) : (
+            <Bomb className="h-3.5 w-3.5 text-[var(--color-fg-soft)]" />
+          )}
+          {minesLeft < 0 ? `+${Math.abs(minesLeft)}` : minesLeft}
         </div>
         <div className="font-mono tabular-nums text-sm text-[var(--color-fg)]">{formatMMSS(seconds)}</div>
 

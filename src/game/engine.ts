@@ -218,6 +218,24 @@ export function revealAllMines(board: Board): Board {
   )
 }
 
+/**
+ * Prepare the board for a time-loss debrief:
+ * - Hidden mines → revealed (bomb icons show what the player missed).
+ * - Non-mine flagged cells → revealed (exposes wrongly-placed flags so the
+ *   player can see the safe content beneath each one).
+ * - Correctly flagged mines keep their flagged state (positive feedback).
+ * - Everything else is unchanged.
+ */
+export function revealAtCountdownLoss(board: Board): Board {
+  return board.map((row) =>
+    row.map((cell) => {
+      if (cell.mine && cell.state === "hidden") return { ...cell, state: "revealed" as const }
+      if (!cell.mine && cell.state === "flagged") return { ...cell, state: "revealed" as const }
+      return cell
+    }),
+  )
+}
+
 export function checkWin(board: Board) {
   for (const row of board) {
     for (const cell of row) {

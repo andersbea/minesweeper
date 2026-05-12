@@ -10,6 +10,7 @@ import {
   placeItems,
   placeMines,
   revealAllMines,
+  revealAtCountdownLoss,
   revealCascade,
   revealSingle,
   toggleFlag,
@@ -145,6 +146,10 @@ export function Game() {
     // tick, commitReveal will have (or is about to) call recordWin. Don't
     // override that with a time-loss — check the live board first.
     if (checkWin(boardRef.current)) return
+    // Reveal unfound mines and wrong flags so the player sees the debrief
+    // state for the ~1.8 s before the overlay appears (same pattern as the
+    // mine-hit loss path which calls revealAllMines).
+    setBoard((prev) => revealAtCountdownLoss(prev))
     setShake(true)
     setStatus("lost")
     setLossReason("time")

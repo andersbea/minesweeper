@@ -113,6 +113,90 @@ test("countdown expiry shows 'Time's up' overlay", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Retry level/ })).toBeVisible()
 })
 
+// ─── Countdown debrief ────────────────────────────────────────────────────────
+
+test("countdown expiry reveals unfound mines and exposes wrongly-placed flags", async ({
+  page,
+}) => {
+  // 3×3 board with 1 second left on the clock.
+  // Mine at (0,0). Two hidden safe cells: (0,1) and (2,2).
+  // One correctly placed flag at (0,0) (the mine).
+  // One wrongly placed flag at (1,1) (safe cell).
+  // All other cells are already revealed.
+  //
+  // At countdown expiry we expect:
+  //   (0,0) — mine + flagged    → stays flagged  (correct, keep as positive feedback)
+  //   (1,1) — safe  + flagged   → becomes revealed (exposes the wrong flag)
+  //   (0,1) — mine-adjacent + hidden → becomes revealed (bomb icon on cell? no, it's safe)
+  //           wait — (0,1) is safe and hidden, not a mine → revealed as number
+  //   (2,2) — safe  + hidden    → stays hidden (revealAtCountdownLoss only touches
+  //           flagged-non-mines and hidden-mines)
+  await page.addInitScript(() => {
+    const adjacentTo00 = (r: number, c: number) =>
+      Math.abs(r) <= 1 && Math.abs(c) <= 1 && !(r === 0 && c === 0)
+    const board = Array.from({ length: 3 }, (_, r) =>
+      Array.from({ length: 3 }, (_, c) => {
+        const isMine = r === 0 && c === 0
+        const isWrongFlag = r === 1 && c === 1
+        const isHidden = isMine || isWrongFlag || (r === 0 && c === 1) || (r === 2 && c === 2)
+        return {
+          mine: isMine,
+          adjacent: !isMine && adjacentTo00(r, c) ? 1 : 0,
+          state: isMine
+            ? "flagged"         // correctly flagged mine
+            : isWrongFlag
+              ? "flagged"       // wrongly flagged safe cell
+              : isHidden
+                ? "hidden"
+                : "revealed",
+          bonus: false,
+          twin: false,
+          item: null,
+        }
+      }),
+    )
+    window.localStorage.setItem(
+      "ms.activeRound",
+      JSON.stringify({
+        schemaVersion: 1,
+        level: 1,
+        rows: 3,
+        cols: 3,
+        mines: 1,
+        bonusTiles: 0,
+        modifierId: "quick",
+        paletteSeed: 0,
+        board,
+        status: "playing",
+        seconds: 1,
+        exploded: null,
+        countdown: 30,
+        bonusValue: 5,
+        lossReason: null,
+      }),
+    )
+  })
+  await page.goto("/")
+
+  // Wait for the countdown to fire (≤1 s) and the debrief to apply.
+  await page.waitForTimeout(1500)
+
+  // Correctly flagged mine at (0,0) = Cell 1,1 must STAY flagged.
+  await expect(page.locator("button[aria-label='Cell 1,1']")).toHaveAttribute(
+    "data-cell-state",
+    "flagged",
+  )
+
+  // Wrongly flagged safe cell at (1,1) = Cell 2,2 must now be REVEALED.
+  await expect(page.locator("button[aria-label='Cell 2,2']")).toHaveAttribute(
+    "data-cell-state",
+    "revealed",
+  )
+
+  // The Time's up overlay must eventually appear.
+  await expect(page.getByText("Time's up")).toBeVisible({ timeout: 5000 })
+})
+
 // ─── Extra Life ────────────────────────────────────────────────────────────────
 
 test("Extra Life defuses a mine on direct reveal — no explosion", async ({ page }) => {

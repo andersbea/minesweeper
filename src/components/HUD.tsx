@@ -61,9 +61,13 @@ export function HUD({ level, best, minesLeft, seconds }: Props) {
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <Stat icon={<Trophy className="h-4 w-4" />} label="Level" value={level} accent />
       <Stat
-        icon={<Bomb className="h-4 w-4" />}
-        label="Mines"
-        value={minesLeft}
+        icon={
+          minesLeft < 0
+            ? <Flag className="h-4 w-4" />
+            : <Bomb className="h-4 w-4" />
+        }
+        label={minesLeft < 0 ? "Extra flags" : "Mines"}
+        value={minesLeft < 0 ? `+${Math.abs(minesLeft)}` : minesLeft}
         danger={minesLeft < 0}
       />
       <Stat icon={<Timer className="h-4 w-4" />} label="Time" value={formatMMSS(seconds)} />
