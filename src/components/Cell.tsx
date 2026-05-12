@@ -225,9 +225,12 @@ function CellInner({
         "relative flex select-none items-center justify-center rounded-md font-mono font-semibold transition-all duration-150 touch-manipulation",
         !isRevealed &&
           "bg-[var(--color-surface-2)] border border-[var(--color-border)] hover:bg-[var(--color-border)] hover:border-[var(--color-accent)]/60",
-        isRevealed &&
-          !cell.mine &&
+        isRevealed && !cell.mine && !fogged &&
           "bg-[var(--color-surface)]/60 border border-[var(--color-border)]/40 cell-reveal",
+        // Fogged interior cells use a heavier, muted surface so they're
+        // visually distinct from both hidden cells and clear revealed cells.
+        isRevealed && !cell.mine && fogged &&
+          "bg-[var(--color-surface-2)]/70 border border-[var(--color-border)]/20",
         isRevealed &&
           cell.mine &&
           (exploded
@@ -240,6 +243,19 @@ function CellInner({
       data-row={row}
       data-col={col}
     >
+      {/* Fog overlay: interior revealed cells in fog modifier. Soft radial
+          gradient suggests mist — distinct from empty (adjacent=0) cells. */}
+      {isRevealed && fogged && !cell.mine && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-md"
+          style={{
+            background:
+              "radial-gradient(ellipse at 40% 35%, color-mix(in oklch, var(--color-fg) 10%, transparent) 0%, transparent 70%)",
+          }}
+        />
+      )}
+
       {!isRevealed && cell.bonus && !isFlagged && (
         <span className="absolute inset-0 rounded-md opacity-30 [background:radial-gradient(circle_at_center,var(--color-flag),transparent_70%)] pointer-events-none" />
       )}
