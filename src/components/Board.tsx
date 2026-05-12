@@ -155,11 +155,25 @@ export function Board({
     }
   }, [])
 
-  // Reset scale to neutral when the board itself changes (new level, new run).
-  // Using rows/cols as a proxy avoids resetting after every reveal.
+  // Helper: scroll the viewport so the board is centred. Two rAFs let React
+  // flush the new padding into the DOM before we read scrollWidth/scrollHeight.
+  const centerScroll = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = containerRef.current
+        if (!el) return
+        el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
+        el.scrollTop = Math.max(0, (el.scrollHeight - el.clientHeight) / 2)
+      })
+    })
+  }, [])
+
+  // Reset scale to neutral and re-centre when the board changes (new level /
+  // new run). Using rows/cols as a proxy avoids resetting on every reveal.
   useEffect(() => {
     setScale(1)
-  }, [rows, cols])
+    centerScroll()
+  }, [rows, cols, centerScroll])
 
   const { cellSize, gap, padding } = useMemo(
     () => fitCells(rows, cols, containerSize.width, containerSize.height),
@@ -169,16 +183,22 @@ export function Board({
   const naturalWidth = padding * 2 + cols * cellSize + Math.max(0, cols - 1) * gap
   const naturalHeight = padding * 2 + rows * cellSize + Math.max(0, rows - 1) * gap
 
-  // Minimum scale: always allow zooming out until the board fits the viewport.
-  // Floor at 0.2 so tiny boards don't get weirdly microscopic.
+  // Half-viewport padding on each side so the board edge can pan to the
+  // centre of the screen. Falls back to 0 before the container is measured.
+  const panPadX = containerSize.width > 0 ? Math.round(containerSize.width / 2) : 0
+  const panPadY = containerSize.height > 0 ? Math.round(containerSize.height / 2) : 0
+
+  // Minimum scale: allow zooming out until the board fills the viewport with a
+  // small margin. Floor at 0.2 so tiny boards don't get weirdly microscopic.
+  const FIT_MARGIN = 16
   const minScale =
     containerSize.width > 0 && naturalWidth > 0
       ? Math.max(
           0.2,
           Math.min(
             1, // never force zoom-in beyond 1:1 just to "fit"
-            (containerSize.width - 32) / naturalWidth, // 32 = 2×16px padding
-            (containerSize.height - 24) / naturalHeight, // 24 = 2×12px padding
+            (containerSize.width - FIT_MARGIN * 2) / naturalWidth,
+            (containerSize.height - FIT_MARGIN * 2) / naturalHeight,
           ),
         )
       : 0.4
@@ -187,17 +207,8 @@ export function Board({
   const scaledWidth = naturalWidth * scale
   const scaledHeight = naturalHeight * scale
 
-  // Whenever the board fits entirely inside the viewport, snap scroll to 0
-  // so m-auto can centre it. This keeps the board centred after zooming out
-  // and prevents a stale scroll offset from hiding part of it.
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    if (scaledWidth + 32 <= containerSize.width && scaledHeight + 24 <= containerSize.height) {
-      el.scrollLeft = 0
-      el.scrollTop = 0
-    }
-  }, [scale]) // eslint-disable-line react-hooks/exhaustive-deps
+  // (The old "snap to 0 when fits" effect was removed: with half-viewport
+  // pan padding, centering is driven by centerScroll() instead.)
 
   // Fog modifier: a revealed cell shows its number only if it borders the
   // unexplored area (i.e. has at least one hidden, non-flagged neighbour).
@@ -264,14 +275,22 @@ export function Board({
       ref={containerRef}
       className="board-scroll relative h-full w-full overflow-auto overscroll-contain [touch-action:pan-x_pan-y]"
     >
-      {/* Wrapper that is at least as large as the scroll container so the
-          board can be centred via `m-auto` when it fits. When the board
-          overflows, `m-auto` resolves to 0 (correct per spec) and the
-          px-4 padding becomes the visible side margin. We deliberately do
-          NOT use `justify-content: center` here because that has a
-          long-standing browser bug where the overflow is clipped on the
-          start side, making the left edge of the board unreachable. */}
-      <div className="flex min-h-full min-w-full px-4 py-3">
+      {/* Wrapper sized to at least the scroll viewport. Half-viewport padding
+          on every side gives the player enough room to pan until any edge of
+          the board reaches the centre of the screen — the maximum the user
+          asked for. `m-auto` centres the board inside the padded flex
+          container when there is leftover space (small/zoomed-out boards).
+          We deliberately avoid `justify-content:center` because of a
+          long-standing browser bug that clips the overflow start side. */}
+      <div
+        className="flex min-h-full min-w-full"
+        style={{
+          paddingLeft: panPadX,
+          paddingRight: panPadX,
+          paddingTop: panPadY,
+          paddingBottom: panPadY,
+        }}
+      >
         <div
           className="relative m-auto shrink-0"
           style={{ width: scaledWidth, height: scaledHeight }}
@@ -335,7 +354,7 @@ export function Board({
       {zoomed && (
         <button
           type="button"
-          onClick={() => setScale(1)}
+          onClick={() => { setScale(1); centerScroll() }}
           aria-label="Reset zoom"
           className="sticky bottom-3 left-[calc(100%-3.5rem)] z-10 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-fg)] shadow-lg backdrop-blur transition-all hover:bg-[var(--color-surface-2)] active:scale-95"
         >

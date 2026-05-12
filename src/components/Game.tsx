@@ -98,6 +98,21 @@ export function Game() {
   // without needing to be re-bound on every render.
   const configRef = useRef(config)
   configRef.current = config
+  // Live ref to the current board so handleCountdownExpired can check whether
+  // the player already cleared the board before declaring a time-loss.
+  const boardRef = useRef(board)
+  boardRef.current = board
+
+  // ── Bug report action log ────────────────────────────────────────────────
+  // Circular buffer (last 30 actions). Written with plain array mutation since
+  // we never need React to re-render on log changes.
+  const actionLogRef = useRef<string[]>([])
+  const logAction = (label: string) => {
+    const ts = new Date().toISOString().slice(11, 23) // "HH:MM:SS.mmm"
+    const log = actionLogRef.current
+    if (log.length >= 30) log.shift()
+    log.push(`${ts} ${label}`)
+  }
 
   // ── Persisted cross-round state ──────────────────────────────────────────
   const [bestLevel, setBestLevel] = useLocalStorage<number>("ms.bestLevel", 0)
@@ -126,11 +141,15 @@ export function Game() {
 
   // ── Timer ────────────────────────────────────────────────────────────────
   const handleCountdownExpired = useCallback(() => {
+    // If the player's last reveal arrived in the same JS frame as this timer
+    // tick, commitReveal will have (or is about to) call recordWin. Don't
+    // override that with a time-loss — check the live board first.
+    if (checkWin(boardRef.current)) return
     setShake(true)
     setStatus("lost")
     setLossReason("time")
     window.setTimeout(() => setShake(false), SHAKE_DURATION_MS)
-  }, [])
+  }, []) // boardRef is a stable ref — intentionally no deps
 
   const { seconds, setSeconds, startTimer, stopTimer, lostOverlayReady } = useGameTimer({
     initialSeconds: savedRound?.seconds ?? config.countdown ?? 0,
@@ -286,6 +305,7 @@ export function Game() {
   const handleReveal = useCallback(
     (r: number, c: number) => {
       if (status === "won" || status === "lost") return
+      logAction(`reveal(${r},${c})`)
 
       let working = board
       if (status === "ready") {
@@ -340,6 +360,7 @@ export function Game() {
   const handleFlag = useCallback(
     (r: number, c: number) => {
       if (status === "won" || status === "lost") return
+      logAction(`flag(${r},${c})`)
       setBoard((b) => toggleFlag(b, r, c))
     },
     [status],
@@ -352,6 +373,7 @@ export function Game() {
       if (status !== "playing") return
       const cell = board[r][c]
       if (cell.state !== "revealed" || cell.adjacent === 0) return
+      logAction(`chord(${r},${c})`)
 
       let flagged = 0
       const hidden: [number, number][] = []
@@ -423,6 +445,7 @@ export function Game() {
       const cell = board[r][c]
       if (!cell.item || cell.state !== "revealed") return
       const dropped = cell.item
+      logAction(`collect(${r},${c},${dropped})`)
       const next = board.map((row) => row.map((c) => ({ ...c })))
       next[r][c].item = null
       setBoard(next)
@@ -445,6 +468,7 @@ export function Game() {
       const type = items[slot]
       if (!type || status !== "playing") return
       if (type === "life") return // auto-fires on mine hit; not manually usable
+      logAction(`use_item(${slot},${type})`)
 
       if (type === "scan") {
         setScanning(true)
@@ -491,6 +515,31 @@ export function Game() {
     setPendingItem(null)
     startLevel(1, { force: "calm" })
   }
+
+  // Snapshot everything useful and copy it to the clipboard so the user can
+  // paste it into the chat as a reproduction bundle.
+  const handleCopyBugReport = useCallback(async () => {
+    let gameState: unknown = null
+    try {
+      const raw = localStorage.getItem("ms.activeRound")
+      if (raw) gameState = JSON.parse(raw)
+    } catch { /* ignore */ }
+    const report = {
+      app: `${__APP_HASH__} (${__APP_BUILT__})`,
+      capturedAt: new Date().toISOString(),
+      ua: navigator.userAgent,
+      viewport: `${window.innerWidth}×${window.innerHeight}`,
+      recentActions: [...actionLogRef.current],
+      gameState,
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+    } catch {
+      // Fallback: dump to console so the user can at least copy from devtools
+      console.info("[bug-report]", JSON.stringify(report, null, 2))
+    }
+    pushItemToast("Bug report copied!")
+  }, [pushItemToast])
 
   const { theme, toggle: toggleTheme } = useTheme()
 
@@ -570,6 +619,7 @@ export function Game() {
         onToggleTheme={toggleTheme}
         onRestart={restartCurrent}
         onNewRun={newRun}
+        onCopyBugReport={handleCopyBugReport}
       />
 
       <ReadyOverlay

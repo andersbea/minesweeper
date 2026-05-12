@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import {
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -42,6 +43,7 @@ interface Props {
   onToggleTheme: () => void
   onRestart: () => void
   onNewRun: () => void
+  onCopyBugReport: () => Promise<void>
 }
 
 export function MenuSheet({
@@ -61,6 +63,7 @@ export function MenuSheet({
   onToggleTheme,
   onRestart,
   onNewRun,
+  onCopyBugReport,
 }: Props) {
   // "hidden" → fully unmounted, "open" → visible, "closing" → exit animation.
   // A single enum avoids the two-boolean invariant (mounted + closing).
@@ -129,6 +132,7 @@ export function MenuSheet({
             onToggleTheme={onToggleTheme}
             onRestart={onRestart}
             onNewRun={onNewRun}
+            onCopyBugReport={onCopyBugReport}
             onOpenModifiers={() => setView("modifiers")}
             onOpenItems={() => setView("items")}
           />
@@ -168,6 +172,7 @@ function MainView({
   onToggleTheme,
   onRestart,
   onNewRun,
+  onCopyBugReport,
   onOpenModifiers,
   onOpenItems,
 }: {
@@ -185,6 +190,7 @@ function MainView({
   onToggleTheme: () => void
   onRestart: () => void
   onNewRun: () => void
+  onCopyBugReport: () => Promise<void>
   onOpenModifiers: () => void
   onOpenItems: () => void
 }) {
@@ -293,9 +299,20 @@ function MainView({
         </Button>
       </div>
 
-      <p className="text-center font-mono text-[10px] text-[var(--color-muted)]">
-        {__APP_BUILT__} · {__APP_HASH__}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-[10px] text-[var(--color-muted)]">
+          {__APP_BUILT__} · {__APP_HASH__}
+        </p>
+        <button
+          type="button"
+          onClick={onCopyBugReport}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg-soft)] active:opacity-70"
+          aria-label="Copy bug report to clipboard"
+        >
+          <AlertCircle className="h-3 w-3" />
+          Copy bug report
+        </button>
+      </div>
     </>
   )
 }
