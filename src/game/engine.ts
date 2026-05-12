@@ -54,9 +54,12 @@ export function placeMines(
   const safeCells = rows * cols - totalMines
 
   // Try up to N layouts. Reject any whose cascade from (safeR, safeC) would
-  // auto-clear the board — that's the "flag/unflag/reveal → instant win" UX
-  // surprise the player ran into. After enough retries, fall back to the
-  // last attempt (better any board than an infinite loop).
+  // reveal all or all-but-one safe cell — both produce a trivial "win" where
+  // the player just flags/unflags the sole remaining hidden cell and reveals
+  // it for an instant finish. We require at least 2 safe cells to survive the
+  // first-click cascade so the player always has meaningful work left to do.
+  // After enough retries, fall back to the last attempt (better any board
+  // than an infinite loop).
   let lastCandidate: Board | null = null
   for (let attempt = 0; attempt < 12; attempt++) {
     const next = board.map((row) => row.map((c) => ({ ...c })))
@@ -110,7 +113,7 @@ export function placeMines(
     // Simulate the cascade that the first click will trigger. If it covers
     // every safe cell, this layout would auto-win — reroll.
     const { revealed } = revealCascade(next, safeR, safeC)
-    if (revealed.length < safeCells) return next
+    if (revealed.length < safeCells - 1) return next
   }
   // Couldn't find a non-auto-win layout in 12 tries (very rare). Return the
   // last one so we at least produce a playable round.

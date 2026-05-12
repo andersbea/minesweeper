@@ -246,3 +246,86 @@ test("hitting a mine shows the loss overlay and reveals all mines", async ({ pag
   // If we never hit a mine within the entire board, the test set-up failed.
   throw new Error("Never hit a mine while clicking every hidden cell")
 })
+
+// ─── Flag/unflag/reveal regression ────────────────────────────────────────────
+// Regression: flagging a cell, then unflaging it, then revealing it used to
+// trigger an instant win on boards where the first-click cascade left only
+// that one safe cell hidden. The fix (placeMines rejects near-trivial boards)
+// combined with correct flag→unflag→reveal state transitions is tested here.
+test("flag→unflag→reveal does not fire a premature win while other safe cells remain hidden", async ({
+  page,
+}) => {
+  // 3×3 board, mine at (0,0). Two hidden non-mine cells:
+  //   Cell 1,2 (row=0, col=1, adjacent=1) — the flag/unflag target
+  //   Cell 3,3 (row=2, col=2, adjacent=0) — the final reveal
+  // Everything else is already revealed so we isolate the flag interaction.
+  //
+  // Adjacency: the lone mine at (0,0) makes (0,1), (1,0), and (1,1) each
+  // have adjacent=1; all other non-mine cells have adjacent=0.
+  await page.addInitScript(() => {
+    const board = Array.from({ length: 3 }, (_, r) =>
+      Array.from({ length: 3 }, (_, c) => {
+        const isMine = r === 0 && c === 0
+        // Cells within one step of (0,0) pick up its mine count.
+        const adjacent = !isMine && r <= 1 && c <= 1 ? 1 : 0
+        // Mine + Cell 1,2 (0,1) + Cell 3,3 (2,2) start hidden; rest revealed.
+        const isHidden = isMine || (r === 0 && c === 1) || (r === 2 && c === 2)
+        return {
+          mine: isMine,
+          adjacent,
+          state: isHidden ? "hidden" : "revealed",
+          bonus: false,
+          twin: false,
+          item: null,
+        }
+      }),
+    )
+    window.localStorage.setItem(
+      "ms.activeRound",
+      JSON.stringify({
+        schemaVersion: 1,
+        level: 1,
+        rows: 3,
+        cols: 3,
+        mines: 1,
+        bonusTiles: 0,
+        modifierId: "calm",
+        paletteSeed: 0,
+        board,
+        status: "playing",
+        seconds: 30,
+        exploded: null,
+        countdown: null,
+        bonusValue: 5,
+        lossReason: null,
+      }),
+    )
+  })
+  await page.goto("/")
+
+  // ── Step 1: flag Cell 1,2 ────────────────────────────────────────────────
+  await page.getByLabel("Cell 1,2").click({ button: "right" })
+  await expect(page.getByLabel("Cell 1,2").locator("svg.lucide-flag")).toBeVisible()
+
+  // ── Step 2: unflag Cell 1,2 ──────────────────────────────────────────────
+  await page.getByLabel("Cell 1,2").click({ button: "right" })
+  await expect(page.getByLabel("Cell 1,2").locator("svg.lucide-flag")).toHaveCount(0)
+
+  // ── Step 3: reveal Cell 1,2 — win must NOT fire (Cell 3,3 still hidden) ──
+  await page.getByLabel("Cell 1,2").click()
+  await expect(page.getByText("Level complete")).toHaveCount(0)
+  // Cell 1,2 must now be revealed (shows its adjacent count "1").
+  await expect(page.locator("button[aria-label='Cell 1,2']")).toHaveAttribute(
+    "data-cell-state",
+    "revealed",
+  )
+  // Cell 3,3 must still be hidden.
+  await expect(page.locator("button[aria-label='Cell 3,3']")).toHaveAttribute(
+    "data-cell-state",
+    "hidden",
+  )
+
+  // ── Step 4: reveal Cell 3,3 — this IS the last safe cell, win must fire ──
+  await page.getByLabel("Cell 3,3").click()
+  await expect(page.getByText("Level complete")).toBeVisible({ timeout: 2000 })
+})
