@@ -330,8 +330,12 @@ export function Game() {
           (item, idx) => item === "life" && !(itemLocks[idx] ?? false),
         )
         if (lifeIdx !== -1) {
+          // Don't remove the mine — that would recompute every neighbour's
+          // adjacency and corrupt the board the player has been solving.
+          // Just flag it in place (keeping mine === true) so the numbers stay
+          // exactly as they were when the round started.
           const defused = working.map((row) => row.map((c) => ({ ...c })))
-          defused[r][c] = { ...defused[r][c], mine: false, state: "flagged" }
+          defused[r][c] = { ...defused[r][c], state: "flagged" }
           setBoard(defused)
           consumeExtraLife(lifeIdx)
           return
@@ -395,6 +399,12 @@ export function Game() {
       const lifeIdx = items.findIndex(
         (item, idx) => item === "life" && !(itemLocks[idx] ?? false),
       )
+      // A chord is a single action, so a single Extra Life shields the whole
+      // of it: if the player holds a life, every mine this chord would have
+      // hit is flagged in place (mine value kept intact so the numbers don't
+      // change) and exactly one life is spent — never a partial save that
+      // defuses one mine but still detonates on the next.
+      const hasLife = lifeIdx !== -1
       let working = board
       const allRevealed: [number, number][] = []
       let hitMine: [number, number] | null = null
@@ -403,10 +413,10 @@ export function Game() {
       for (const [nr, nc] of hidden) {
         if (working[nr][nc].state !== "hidden") continue
         if (working[nr][nc].mine) {
-          if (lifeIdx !== -1 && !lifeUsed) {
+          if (hasLife) {
             lifeUsed = true
             const defused = working.map((row) => row.map((c2) => ({ ...c2 })))
-            defused[nr][nc] = { ...defused[nr][nc], mine: false, state: "flagged" }
+            defused[nr][nc] = { ...defused[nr][nc], state: "flagged" }
             working = defused
             continue
           }

@@ -263,6 +263,75 @@ test("Extra Life defuses a mine on direct reveal — no explosion", async ({ pag
   expect(items).not.toContain("life")
 })
 
+test("One Extra Life shields a chord that uncovers multiple mines", async ({ page }) => {
+  await page.addInitScript(() => {
+    // 3×3 board. Mines at (0,0) and (0,2). Centre (1,1) is revealed with
+    // adjacent === 2. Two SAFE corners (2,0)/(2,2) are mis-flagged so the
+    // chord's flag count (2) equals the centre's number, letting it fire and
+    // uncover BOTH hidden mines at once.
+    const mine = (r: number, c: number) => (r === 0 && c === 0) || (r === 0 && c === 2)
+    const adjacency = [
+      [0, 2, 0],
+      [1, 2, 1],
+      [0, 0, 0],
+    ]
+    const board = Array.from({ length: 3 }, (_, r) =>
+      Array.from({ length: 3 }, (_, c) => ({
+        mine: mine(r, c),
+        adjacent: adjacency[r][c],
+        state:
+          r === 1 && c === 1
+            ? "revealed"
+            : (r === 2 && c === 0) || (r === 2 && c === 2)
+              ? "flagged"
+              : "hidden",
+        bonus: false,
+        twin: false,
+        item: null,
+      })),
+    )
+    window.localStorage.setItem(
+      "ms.activeRound",
+      JSON.stringify({
+        schemaVersion: 1,
+        level: 2,
+        rows: 3,
+        cols: 3,
+        mines: 2,
+        bonusTiles: 0,
+        modifierId: "calm",
+        paletteSeed: 0,
+        board,
+        status: "playing",
+        seconds: 5,
+        exploded: null,
+        countdown: null,
+        bonusValue: 5,
+      }),
+    )
+    window.localStorage.setItem("ms.items", JSON.stringify(["life"]))
+    window.localStorage.setItem("ms.itemLocks", JSON.stringify([false]))
+  })
+  await page.goto("/")
+
+  // Chord on the revealed centre cell.
+  await page.getByLabel("Cell 2,2").click()
+
+  // BOTH mines must be flagged, not detonated.
+  await expect(page.getByLabel("Cell 1,1").locator("svg.lucide-flag")).toBeVisible()
+  await expect(page.getByLabel("Cell 1,3").locator("svg.lucide-flag")).toBeVisible()
+  await expect(page.locator("svg.lucide-bomb")).toHaveCount(0)
+
+  // The round must NOT be lost.
+  await expect(page.getByText("You hit a mine")).toHaveCount(0)
+
+  // Exactly one Extra Life consumed (started with one → now none).
+  const items = await page.evaluate(() =>
+    JSON.parse(window.localStorage.getItem("ms.items") ?? "[]"),
+  )
+  expect(items).not.toContain("life")
+})
+
 // ─── Retry inventory restoration ───────────────────────────────────────────────
 
 test("Retry level restores inventory from the round-start snapshot", async ({ page }) => {
