@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { Minimize2 } from "lucide-react"
 import type { Board as BoardT } from "@/game/types"
 import { Cell } from "./Cell"
@@ -65,6 +66,10 @@ export function Board({
   // is only attached once — always reads the current value without needing a
   // re-bind.
   const minScaleRef = useRef(0.4)
+  // Same pattern for the half-viewport pan padding (below) — the pinch
+  // handler needs it to convert between screen-space and the board's own
+  // unscaled coordinate space.
+  const panPadRef = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
     const el = containerRef.current
@@ -128,15 +133,27 @@ export function Board({
         Math.min(MAX_SCALE, pinch.scale * (d / pinch.dist)),
       )
 
-      // Anchor the gesture: the document point under the original centroid
-      // should stay under the current centroid as we scale.
-      const docX = (pinch.pointer.x + pinch.scrollLeft) / pinch.scale
-      const docY = (pinch.pointer.y + pinch.scrollTop) / pinch.scale
-      setScale(next)
-      // Scroll to keep that doc point under the live centroid, accounting
-      // for the centroid having moved (two-finger pan).
-      el.scrollLeft = docX * next - pointer.x
-      el.scrollTop = docY * next - pointer.y
+      // Anchor the gesture: the board point under the original centroid
+      // should stay under the current centroid as we scale. The board's
+      // own (unscaled) coordinate space starts `panPad` pixels into the
+      // scroll content — that's the half-viewport pan padding on every
+      // side — so it has to be subtracted before dividing out the scale
+      // (and added back below) to land on the actual point under the
+      // fingers rather than one skewed by half the viewport size.
+      const pad = panPadRef.current
+      const docX = (pinch.pointer.x + pinch.scrollLeft - pad.x) / pinch.scale
+      const docY = (pinch.pointer.y + pinch.scrollTop - pad.y) / pinch.scale
+      // flushSync so the new scale is actually painted (and scrollWidth/
+      // scrollHeight grow to match) before we touch scrollLeft/scrollTop
+      // below — otherwise the browser clamps the scroll position we're
+      // about to set against the *old*, smaller scroll bounds, and that
+      // clamped value sticks even once the resize catches up a moment
+      // later, drifting the anchor away from the pinch center.
+      flushSync(() => setScale(next))
+      // Scroll to keep that board point under the live centroid,
+      // accounting for the centroid having moved (two-finger pan).
+      el.scrollLeft = pad.x + docX * next - pointer.x
+      el.scrollTop = pad.y + docY * next - pointer.y
     }
 
     const onTouchEnd = () => {
@@ -187,6 +204,7 @@ export function Board({
   // centre of the screen. Falls back to 0 before the container is measured.
   const panPadX = containerSize.width > 0 ? Math.round(containerSize.width / 2) : 0
   const panPadY = containerSize.height > 0 ? Math.round(containerSize.height / 2) : 0
+  panPadRef.current = { x: panPadX, y: panPadY }
 
   // Minimum scale: allow zooming out until the board fills the viewport with a
   // small margin. Floor at 0.2 so tiny boards don't get weirdly microscopic.
